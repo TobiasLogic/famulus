@@ -17,3 +17,8 @@ HANDOFF.md
 TESTING.md
 TODO.md
 examples/README.md
+
+credentials.properties
+**/credentials.properties
+*.key
+famulus.properties

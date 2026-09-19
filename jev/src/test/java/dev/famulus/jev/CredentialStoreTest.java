@@ -87,8 +87,8 @@ class CredentialStoreTest {
         assertEquals("not set", CredentialStore.mask(null));
         assertEquals("not set", CredentialStore.mask("   "));
         assertEquals("********", CredentialStore.mask("12345678"));
-        String masked = CredentialStore.mask("sk-or-v1-6b66d58b5e2a41cc596d72342a07b775");
-        assertFalse(masked.contains("6b66d58b"), "The middle of a key must never be shown");
+        String masked = CredentialStore.mask("sk-or-v1-00000000000000000000000000000000");
+        assertFalse(masked.contains("00000000"), "The middle of a key must never be shown");
         assertTrue(masked.length() < 20);
     }
 
