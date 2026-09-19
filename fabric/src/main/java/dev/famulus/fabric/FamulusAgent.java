@@ -338,6 +338,9 @@ public final class FamulusAgent {
         if (!taskStarted) {
             ToolCheck.Verdict tools = ToolCheck.assess(client, blockId);
             if (!tools.usable()) {
+                if (insertToolCraft(client, tools)) {
+                    return;
+                }
                 taskStarted = true;
                 finishTask(new TaskResult(TaskStatus.RESOURCE_MISSING, tools.message(),
                         snapshot.itemCount(), count, 0));
@@ -360,6 +363,27 @@ public final class FamulusAgent {
         if (!gather.isRunning()) {
             finishTask(gather.result());
         }
+    }
+
+    private boolean insertToolCraft(Minecraft client, ToolCheck.Verdict tools) {
+        String tool = tools.suggestedTool();
+        if (tool == null || runner.insertedCount() >= PlanRunner.MAX_INSERTED_TASKS) {
+            return false;
+        }
+        if (!MinecraftCraftExecutor.hasRecipeFor(client, tool)) {
+            note("no recipe known for " + tool + ", cannot make one");
+            return false;
+        }
+        PlannedTask craft = new PlannedTask.Craft(
+                "tool-" + runner.insertedCount() + "-" + tool.replace(':', '-'), tool, 1);
+        try {
+            runner.insertBeforeCurrent(craft, tools.message());
+        } catch (RuntimeException refused) {
+            note("could not add a craft step: " + refused.getMessage());
+            return false;
+        }
+        note("missing a tool, crafting " + tool + " first");
+        return true;
     }
 
     private void explore(Minecraft client, long nowMillis) {

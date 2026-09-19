@@ -195,6 +195,31 @@ public final class GatherClientGameTest implements FabricClientGameTest {
                     "A missing tool should be refused quickly, not left to the stall timeout; took "
                     + refusalMillis + "ms");
 
+            world.getServer().runCommand("setblock 59 -60 60 minecraft:crafting_table");
+            world.getServer().runCommand("item replace entity @a hotbar.5 with minecraft:oak_planks 3");
+            world.getServer().runCommand("item replace entity @a hotbar.6 with minecraft:stick 2");
+            world.getServer().runCommand("tp @a 60.5 -60 60.5 0 0");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            world.getConnection().waitForChunksRender();
+
+            command(context, "/famulus mine minecraft:stone minecraft:cobblestone 4");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 3600);
+            int madeTool = context.computeOnClient(client ->
+                    client.player.getInventory().countItem(Items.WOODEN_PICKAXE));
+            int cobbleFromCraftedTool = context.computeOnClient(GatherClientGameTest::cobbleCount);
+            String crafted = lastLogMentioning("crafting minecraft:wooden_pickaxe");
+            System.out.println("[FamulusToolCraft] " + crafted + " | wooden pickaxes=" + madeTool
+                    + " cobblestone=" + cobbleFromCraftedTool);
+            context.takeScreenshot("famulus-tool-crafted");
+            require(!crafted.isEmpty(),
+                    "A missing pickaxe should have been crafted, log was "
+                    + FamulusClient.agent().recentLog());
+            require(cobbleFromCraftedTool >= 4,
+                    "After crafting the pickaxe the stone should have been mined, cobblestone="
+                    + cobbleFromCraftedTool);
+
             world.getServer().runCommand("item replace entity @a hotbar.3 with minecraft:diamond_pickaxe 1");
             context.waitTick();
             world.getConnection().waitForClientboundPackets();

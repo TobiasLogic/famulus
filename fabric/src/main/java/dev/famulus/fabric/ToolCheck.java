@@ -12,29 +12,33 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 public final class ToolCheck {
-    public record Verdict(boolean usable, String message) {}
+    public record Verdict(boolean usable, String message, String suggestedTool) {}
 
     private ToolCheck() {}
 
     public static Verdict assess(Minecraft client, String blockList) {
         if (client.player == null) {
-            return new Verdict(true, "no player to check");
+            return new Verdict(true, "no player to check", null);
         }
         List<String> unusable = new ArrayList<>();
+        String suggestion = null;
         for (String blockId : blockList.split(",")) {
             BlockState state = stateOf(blockId);
             if (state == null) {
                 continue;
             }
             if (!state.requiresCorrectToolForDrops() || bestToolSlot(client, state) >= 0) {
-                return new Verdict(true, "a usable tool is in the inventory");
+                return new Verdict(true, "a usable tool is in the inventory", null);
             }
             unusable.add(blockId + " needs " + requirement(state));
+            if (suggestion == null) {
+                suggestion = craftableFor(state);
+            }
         }
         if (unusable.isEmpty()) {
-            return new Verdict(true, "no tool is required");
+            return new Verdict(true, "no tool is required", null);
         }
-        return new Verdict(false, "no suitable tool: " + String.join("; ", unusable));
+        return new Verdict(false, "no suitable tool: " + String.join("; ", unusable), suggestion);
     }
 
     public static boolean equipFor(Minecraft client, String blockList) {
@@ -105,6 +109,31 @@ public final class ToolCheck {
             }
         }
         return best;
+    }
+
+    private static String craftableFor(BlockState state) {
+        String kind;
+        if (state.is(BlockTags.MINEABLE_WITH_PICKAXE)) {
+            kind = "pickaxe";
+        } else if (state.is(BlockTags.MINEABLE_WITH_AXE)) {
+            kind = "axe";
+        } else if (state.is(BlockTags.MINEABLE_WITH_SHOVEL)) {
+            kind = "shovel";
+        } else if (state.is(BlockTags.MINEABLE_WITH_HOE)) {
+            kind = "hoe";
+        } else {
+            return null;
+        }
+        if (state.is(BlockTags.NEEDS_DIAMOND_TOOL)) {
+            return "minecraft:diamond_" + kind;
+        }
+        if (state.is(BlockTags.NEEDS_IRON_TOOL)) {
+            return "minecraft:iron_" + kind;
+        }
+        if (state.is(BlockTags.NEEDS_STONE_TOOL)) {
+            return "minecraft:stone_" + kind;
+        }
+        return "minecraft:wooden_" + kind;
     }
 
     private static String requirement(BlockState state) {

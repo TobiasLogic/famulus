@@ -57,8 +57,10 @@ require_line 'plan PLAN_COMPLETE' \
     'the plan ran to completion'
 require_pattern '\[agent\] RESOURCE_MISSING: no suitable tool' \
     'mining without the right tool was refused with the reason'
+require_line '[agent] missing a tool, crafting minecraft:wooden_pickaxe first' \
+    'a missing pickaxe was crafted on the spot rather than ending the plan'
 
-for shot in gather-running gather-completed inventory-32-oak-logs already-satisfied stopped plan-first-task plan-complete screen-agent screen-chat screen-build screen-settings deposit-done shulker-deposit craft-done mine-done place-done smelt-done hotbar-place-done no-tool interact-done; do
+for shot in gather-running gather-completed inventory-32-oak-logs already-satisfied stopped plan-first-task plan-complete screen-agent screen-chat screen-build screen-settings deposit-done shulker-deposit craft-done mine-done place-done smelt-done hotbar-place-done no-tool tool-crafted interact-done; do
     if compgen -G "$run_dir/screenshots/*${shot}.png" > /dev/null; then
         echo "  ok   screenshot ${shot}"
     else

@@ -7,9 +7,13 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class PlanRunner {
+    public static final int MAX_INSERTED_TASKS = 4;
+
     private final TaskPlan plan;
     private final int maxAttemptsPerTask;
     private final List<TaskResult> completed = new ArrayList<>();
+    private final List<PlannedTask> queue;
+    private int inserted;
 
     private int index;
     private int attempts;
@@ -22,6 +26,7 @@ public final class PlanRunner {
             throw new IllegalArgumentException("Each task needs at least one attempt");
         }
         this.maxAttemptsPerTask = maxAttemptsPerTask;
+        this.queue = new ArrayList<>(plan.tasks());
         if (!plan.isExecutable()) {
             throw new IllegalArgumentException("Plan contains tasks with no executor: "
                     + plan.unexecutable().stream().map(PlannedTask::describe).toList());
@@ -38,10 +43,45 @@ public final class PlanRunner {
     }
 
     public PlannedTask current() {
-        if (index >= plan.tasks().size()) {
+        if (index >= queue.size()) {
             return null;
         }
-        return plan.tasks().get(index);
+        return queue.get(index);
+    }
+
+    public List<PlannedTask> remaining() {
+        return List.copyOf(queue.subList(Math.min(index + 1, queue.size()), queue.size()));
+    }
+
+    public PlanStep insertBeforeCurrent(PlannedTask task, String why) {
+        Objects.requireNonNull(task, "task");
+        if (step != PlanStep.RUN_CURRENT && step != PlanStep.CONSULT_POLICY) {
+            throw new IllegalStateException("Cannot insert a task while the plan is " + step);
+        }
+        if (current() == null) {
+            throw new IllegalStateException("There is no current task to insert before");
+        }
+        if (!task.action().isExecutable()) {
+            throw new IllegalArgumentException("Inserted task has no executor: " + task.describe());
+        }
+        if (inserted >= MAX_INSERTED_TASKS) {
+            return fail(PlanStep.PLAN_FAILED, "Gave up after inserting " + inserted
+                    + " extra tasks; the last was " + task.describe());
+        }
+        for (PlannedTask existing : queue) {
+            if (existing.id().equals(task.id())) {
+                throw new IllegalArgumentException("Duplicate task id: " + task.id());
+            }
+        }
+        inserted++;
+        queue.add(index, task);
+        attempts = 1;
+        reason = why + "; doing " + task.describe() + " first";
+        return step = PlanStep.RUN_CURRENT;
+    }
+
+    public int insertedCount() {
+        return inserted;
     }
 
     public PlanStep onTaskResult(TaskResult result) {
@@ -116,7 +156,7 @@ public final class PlanRunner {
     private PlanStep advance(String why) {
         index++;
         attempts = 1;
-        if (index >= plan.tasks().size()) {
+        if (index >= queue.size()) {
             reason = "Plan complete: " + plan.goal();
             return step = PlanStep.PLAN_COMPLETE;
         }
@@ -153,15 +193,15 @@ public final class PlanRunner {
     }
 
     public int taskIndex() {
-        return Math.min(index, plan.tasks().size() - 1);
+        return Math.min(index, queue.size() - 1);
     }
 
     public int taskCount() {
-        return plan.tasks().size();
+        return queue.size();
     }
 
     public int completedCount() {
-        return Math.min(index, plan.tasks().size());
+        return Math.min(index, queue.size());
     }
 
     public int attempts() {

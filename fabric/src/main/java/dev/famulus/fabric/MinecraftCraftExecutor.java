@@ -127,6 +127,24 @@ public final class MinecraftCraftExecutor implements ContainerExecutor {
         return best;
     }
 
+    public static boolean hasRecipeFor(Minecraft client, String itemId) {
+        if (client.player == null || client.level == null) {
+            return false;
+        }
+        var context = SlotDisplayContext.fromLevel(client.level);
+        for (var collection : client.player.getRecipeBook().getCollections()) {
+            for (RecipeDisplayEntry entry : collection.getRecipes()) {
+                for (ItemStack result : entry.resultItems(context)) {
+                    if (!result.isEmpty() && net.minecraft.core.registries.BuiltInRegistries.ITEM
+                            .getKey(result.getItem()).toString().equals(itemId)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private Optional<RecipeDisplayEntry> findRecipe(Minecraft client) {
         var context = SlotDisplayContext.fromLevel(client.level);
         for (var collection : client.player.getRecipeBook().getCollections()) {

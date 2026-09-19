@@ -227,4 +227,78 @@ class PlanRunnerTest {
         assertTrue(runner.progress().startsWith("[1/2]"));
         assertTrue(runner.progress().contains("gather 16 minecraft:dirt"));
     }
+
+    @Test
+    void anInsertedTaskRunsBeforeTheOneThatNeededIt() {
+        PlanRunner runner = new PlanRunner(new TaskPlan("dig", List.of(
+                new PlannedTask.Mine("m1", "minecraft:iron_ore", "minecraft:raw_iron", 4),
+                new PlannedTask.Craft("c1", "minecraft:bucket", 1))), 3);
+        runner.start();
+        assertEquals("m1", runner.current().id());
+        assertEquals(2, runner.taskCount());
+
+        runner.insertBeforeCurrent(new PlannedTask.Craft("t1", "minecraft:stone_pickaxe", 1),
+                "no suitable tool");
+        assertEquals(PlanStep.RUN_CURRENT, runner.step());
+        assertEquals("t1", runner.current().id(), "The new task should be next");
+        assertEquals(3, runner.taskCount());
+        assertEquals(1, runner.insertedCount());
+
+        runner.onTaskResult(result(TaskStatus.SUCCESS));
+        assertEquals("m1", runner.current().id(), "The original task should resume");
+        runner.onTaskResult(result(TaskStatus.SUCCESS));
+        assertEquals("c1", runner.current().id());
+        runner.onTaskResult(result(TaskStatus.SUCCESS));
+        assertEquals(PlanStep.PLAN_COMPLETE, runner.step());
+    }
+
+    @Test
+    void insertingResetsTheAttemptCountForTheNewTask() {
+        PlanRunner runner = new PlanRunner(new TaskPlan("dig", List.of(
+                new PlannedTask.Mine("m1", "minecraft:iron_ore", "minecraft:raw_iron", 4))), 3);
+        runner.start();
+        runner.onTaskResult(result(TaskStatus.RESOURCE_MISSING));
+        assertEquals(PlanStep.CONSULT_POLICY, runner.step());
+        runner.onPolicyDecision(AgentAction.RECOVER);
+        assertEquals(2, runner.attempts());
+
+        runner.insertBeforeCurrent(new PlannedTask.Craft("t1", "minecraft:stone_pickaxe", 1), "why");
+        assertEquals(1, runner.attempts(), "A fresh task starts on attempt one");
+    }
+
+    @Test
+    void insertionIsBoundedSoAFailingToolLoopCannotRunForever() {
+        PlanRunner runner = new PlanRunner(new TaskPlan("dig", List.of(
+                new PlannedTask.Mine("m1", "minecraft:iron_ore", "minecraft:raw_iron", 4))), 3);
+        runner.start();
+        for (int i = 0; i < PlanRunner.MAX_INSERTED_TASKS; i++) {
+            runner.insertBeforeCurrent(new PlannedTask.Craft("t" + i, "minecraft:stone_pickaxe", 1),
+                    "why");
+        }
+        PlanStep step = runner.insertBeforeCurrent(
+                new PlannedTask.Craft("tx", "minecraft:stone_pickaxe", 1), "why");
+        assertEquals(PlanStep.PLAN_FAILED, step);
+        assertTrue(runner.reason().contains("Gave up after inserting"));
+    }
+
+    @Test
+    void anInsertedTaskMustBeRunnableAndUniquelyNamed() {
+        PlanRunner runner = new PlanRunner(new TaskPlan("dig", List.of(
+                new PlannedTask.Mine("m1", "minecraft:iron_ore", "minecraft:raw_iron", 4))), 3);
+        runner.start();
+        assertThrows(IllegalArgumentException.class, () -> runner.insertBeforeCurrent(
+                new PlannedTask.Craft("m1", "minecraft:stone_pickaxe", 1), "clash"));
+        assertThrows(NullPointerException.class, () -> runner.insertBeforeCurrent(null, "none"));
+    }
+
+    @Test
+    void nothingCanBeInsertedOnceThePlanIsOver() {
+        PlanRunner runner = new PlanRunner(new TaskPlan("dig", List.of(
+                new PlannedTask.Mine("m1", "minecraft:iron_ore", "minecraft:raw_iron", 4))), 3);
+        runner.start();
+        runner.onTaskResult(result(TaskStatus.SUCCESS));
+        assertEquals(PlanStep.PLAN_COMPLETE, runner.step());
+        assertThrows(IllegalStateException.class, () -> runner.insertBeforeCurrent(
+                new PlannedTask.Craft("t1", "minecraft:stone_pickaxe", 1), "too late"));
+    }
 }
