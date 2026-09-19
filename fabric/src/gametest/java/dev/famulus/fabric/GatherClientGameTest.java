@@ -1,0 +1,171 @@
+package dev.famulus.fabric;
+
+import baritone.api.BaritoneAPI;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
+import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
+import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.worldselection.WorldCreationUiState;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+
+@SuppressWarnings("UnstableApiUsage")
+public final class GatherClientGameTest implements FabricClientGameTest {
+    private static final int TARGET = 32;
+    private static final int GATHER_TIMEOUT_TICKS = 6000;
+
+    @Override
+    public void runTest(ClientGameTestContext context) {
+        try (TestSingleplayerContext world = context.worldBuilder()
+                .adjustSettings(settings -> settings.setGameMode(WorldCreationUiState.SelectedGameMode.SURVIVAL))
+                .create()) {
+            world.getConnection().waitForChunksDownload();
+            world.getServer().runCommand("tp @a 0.5 -60 0.5 0 0");
+            world.getServer().runCommand("clear @a");
+            world.getServer().runCommand("give @a minecraft:diamond_axe 1");
+            world.getServer().runCommand("fill 2 -60 2 9 -60 5 minecraft:oak_log");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            world.getConnection().waitForChunksRender();
+            context.runOnClient(client -> require(oakCount(client) == 0, "Fixture must start with no oak logs"));
+
+            command(context, "/famulus gather minecraft:oak_log 32");
+            context.waitFor(client -> isMining(), 200);
+            context.takeScreenshot("famulus-gather-running");
+            context.waitFor(client -> oakCount(client) >= TARGET && !isMining(), GATHER_TIMEOUT_TICKS);
+            context.runOnClient(client -> require(oakCount(client) == TARGET,
+                    "Gather must collect the 32 fixture logs and release Baritone"));
+            command(context, "/famulus status");
+            context.takeScreenshot("famulus-gather-completed");
+            context.getInput().pressKey(options -> options.keyInventory);
+            context.waitTick();
+            context.takeScreenshot("famulus-inventory-32-oak-logs");
+            context.setScreen(() -> null);
+
+            BlockPos sentinel = new BlockPos(2, -60, 0);
+            world.getServer().runCommand("setblock 2 -60 0 minecraft:oak_log");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            command(context, "/famulus gather minecraft:oak_log 32");
+            for (int tick = 0; tick < 40; tick++) {
+                context.runOnClient(client -> {
+                    require(!isMining(), "An already satisfied request must not start mining");
+                    require(oakCount(client) == TARGET, "An already satisfied request must preserve inventory");
+                    require(client.level.getBlockState(sentinel).is(Blocks.OAK_LOG),
+                            "An already satisfied request must leave the sentinel log untouched");
+                });
+                context.waitTick();
+            }
+            context.takeScreenshot("famulus-already-satisfied");
+
+            world.getServer().runCommand("fill 2 -60 2 9 -60 9 minecraft:oak_log");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            command(context, "/famulus gather minecraft:oak_log 96");
+            context.waitFor(client -> isMining(), 200);
+            command(context, "/famulus status");
+            command(context, "/famulus stop");
+            context.waitFor(client -> !isMining(), 200);
+            for (int tick = 0; tick < 20; tick++) {
+                context.runOnClient(client -> require(!isMining(), "Stop must leave Baritone inactive"));
+                context.waitTick();
+            }
+            command(context, "/famulus status");
+            context.takeScreenshot("famulus-stopped");
+
+            world.getServer().runCommand("clear @a");
+            world.getServer().runCommand("give @a minecraft:diamond_axe 1");
+            world.getServer().runCommand("give @a minecraft:diamond_shovel 1");
+            world.getServer().runCommand("fill 2 -60 2 9 -60 3 minecraft:oak_log");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            context.runOnClient(client -> require(oakCount(client) == 0 && dirtCount(client) == 0,
+                    "The plan fixture must start empty"));
+
+            command(context, "/famulus queue minecraft:oak_log=8, minecraft:dirt=8");
+            context.waitFor(client -> oakCount(client) >= 8, GATHER_TIMEOUT_TICKS);
+            context.takeScreenshot("famulus-plan-first-task");
+
+            context.waitFor(client -> dirtCount(client) >= 8, GATHER_TIMEOUT_TICKS);
+            context.waitFor(client -> !isMining(), 400);
+            context.runOnClient(client -> {
+                require(oakCount(client) >= 8, "The plan must keep the first task's items");
+                require(dirtCount(client) >= 8, "The plan must complete its second task");
+            });
+            command(context, "/famulus status");
+            context.takeScreenshot("famulus-plan-complete");
+
+            if (System.getenv("OPENROUTER_API_KEY") != null) {
+                world.getServer().runCommand("clear @a");
+                world.getServer().runCommand("give @a minecraft:diamond_axe 1");
+                world.getServer().runCommand("fill 2 -60 2 9 -60 9 minecraft:air");
+                context.waitTick();
+                world.getConnection().waitForClientboundPackets();
+                command(context, "/famulus queue minecraft:oak_log=64");
+                context.waitFor(client -> consulted(), 6000);
+                context.runOnClient(client -> {
+                    require(consulted(), "The policy must be consulted when a task cannot succeed");
+                    require(decision().isPresent(), "The decision must be recorded in the log");
+                });
+                context.waitFor(client -> FamulusClient.agent() != null
+                        && !FamulusClient.agent().isRunning(), 12000);
+                context.takeScreenshot("famulus-policy-escalation");
+                System.out.println("[FamulusPolicy] " + decision().orElse("no decision"));
+            }
+
+            context.setScreen(FamulusClient::createScreen);
+            context.waitTick();
+            context.takeScreenshot("famulus-screen-agent");
+            context.setScreen(() -> FamulusClient.createScreen(1));
+            context.waitTick();
+            context.takeScreenshot("famulus-screen-chat");
+            context.setScreen(() -> FamulusClient.createScreen(2));
+            context.waitTick();
+            context.takeScreenshot("famulus-screen-build");
+            context.setScreen(() -> FamulusClient.createScreen(3));
+            context.waitTick();
+            context.takeScreenshot("famulus-screen-settings");
+            context.setScreen(() -> null);
+            context.waitTick();
+        }
+    }
+
+    private static void command(ClientGameTestContext context, String command) {
+        context.getInput().pressKey(options -> options.keyChat);
+        context.getInput().typeChars(command);
+        context.getInput().holdKeyFor(InputConstants.KEY_RETURN, 0);
+        context.waitTick();
+    }
+
+    private static int oakCount(Minecraft client) {
+        return client.player.getInventory().countItem(Items.OAK_LOG);
+    }
+
+    private static int dirtCount(Minecraft client) {
+        return client.player.getInventory().countItem(Items.DIRT);
+    }
+
+    private static boolean consulted() {
+        return decision().isPresent();
+    }
+
+    private static java.util.Optional<String> decision() {
+        FamulusAgent agent = FamulusClient.agent();
+        if (agent == null) {
+            return java.util.Optional.empty();
+        }
+        return agent.recentLog().stream().filter(line -> line.startsWith("policy chose")).findFirst();
+    }
+
+    private static boolean isMining() {
+        return BaritoneAPI.getProvider().getPrimaryBaritone().getMineProcess().isActive();
+    }
+
+    private static void require(boolean condition, String message) {
+        if (!condition) {
+            throw new AssertionError(message);
+        }
+    }
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "famulus-gametest",
+  "version": "1.0.0",
+  "name": "Famulus Client Integration Tests",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": [
+      "dev.famulus.fabric.GatherClientGameTest",
+      "dev.famulus.fabric.ScaffoldingProbeGameTest",
+      "dev.famulus.fabric.ExploreProbeGameTest"
+    ]
+  },
+  "depends": {
+    "famulus": "*",
+    "fabric-client-gametest-api-v1": "*",
+    "baritone": "*"
+  }
+}

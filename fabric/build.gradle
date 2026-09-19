@@ -1,0 +1,70 @@
+plugins { id 'net.fabricmc.fabric-loom' version "${loom_version}" }
+// Gradle evaluates subprojects alphabetically, so :fabric would otherwise be configured before
+// :jev and could not read its source sets when bundling them into the mod jar.
+evaluationDependsOn(':core')
+evaluationDependsOn(':jev')
+evaluationDependsOn(':planner')
+base { archivesName = 'famulus-fabric-26.2' }
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+    withSourcesJar()
+}
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+loom {
+    runs {
+        client {
+            client()
+            runDir 'run'
+        }
+    }
+}
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = 'famulus-gametest'
+        enableGameTests = false
+        enableClientGameTests = true
+        clearRunDirectory = true
+    }
+}
+def baritoneJar = rootProject.file("libs/baritone-api-fabric-${baritone_version}.jar")
+tasks.register('verifyBaritone') {
+    inputs.file(baritoneJar)
+    doLast {
+        if (!baritoneJar.isFile()) {
+            throw new GradleException('Missing Baritone API mod. Run ./scripts/fetch-baritone.sh first.')
+        }
+        def actual = java.security.MessageDigest.getInstance('SHA-256').digest(baritoneJar.bytes).encodeHex().toString()
+        if (actual != 'eca6e2fdf43c6657fe9fea10a8f9a7572d78dc91ad389b998b808bd28fa5b5d1') {
+            throw new GradleException('Baritone checksum mismatch; run ./scripts/fetch-baritone.sh to obtain the pinned upstream artifact.')
+        }
+    }
+}
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    implementation project(':core')
+    implementation project(':jev')
+    implementation project(':planner')
+    implementation files(baritoneJar)
+}
+tasks.named('compileJava') { dependsOn 'verifyBaritone' }
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}
+jar {
+    from project(':core').sourceSets.main.output
+    from project(':jev').sourceSets.main.output
+    from project(':planner').sourceSets.main.output
+}
+sourcesJar {
+    from project(':core').sourceSets.main.allSource
+    from project(':jev').sourceSets.main.allSource
+    from project(':planner').sourceSets.main.allSource
+}
