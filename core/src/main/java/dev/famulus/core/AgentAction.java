@@ -4,6 +4,7 @@ public enum AgentAction {
     GATHER(true),
     MINE(true),
     CRAFT(true),
+    SMELT(true),
     TRAVEL(true),
 
     EXPLORE(true),

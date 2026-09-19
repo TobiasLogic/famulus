@@ -19,6 +19,8 @@ Famulus is a Fabric client mod for **Minecraft Java 26.2**. It uses
 * Travels to a coordinate
 * Crafts anything it knows a recipe for, using a crafting table when one is in reach and the
   inventory grid when it is not
+* Smelts in a furnace, choosing its own fuel from what you carry, and consumes only as much input as
+  the task asked for
 * Mines a named block for its drop, so stone gives cobblestone and ores give what they drop
 * Places a single block at a coordinate
 * Uses a block, such as flipping a lever or opening a door, and checks it actually changed
@@ -94,6 +96,7 @@ Commands work too, if you prefer typing:
 | `/famulus deposit <item> <count>` | Put items into a nearby container |
 | `/famulus withdraw <item> <count>` | Take items out of a nearby container |
 | `/famulus craft <item> <count>` | Craft an item |
+| `/famulus smelt <item> <count>` | Cook something in a nearby furnace |
 | `/famulus mine <block> <item> <count>` | Mine a block until you hold enough of its drop |
 | `/famulus place <item> <x> <y> <z>` | Place one block at a coordinate |
 | `/famulus interact <block>` | Use the nearest block of that kind |
@@ -171,6 +174,14 @@ Worth knowing before you expect too much:
   tested in a live game.
 * Interacting means using a block, such as a lever, button or door, and it is confirmed by the block
   changing state. Trading with villagers and other entity interactions are not implemented.
+* There is no combat, no eating and no armour handling, so it cannot defend itself, feed itself or
+  survive a night it was not sent indoors for.
+* Nothing checks that you are carrying the right tool. Asking it to mine diamond ore with a wooden
+  pickaxe fails on the stall timeout rather than saying what is wrong.
+* Smelting needs a furnace already within a few blocks and fuel already in the inventory. It will
+  not build or place one for you unless the plan says to.
+* What it knows about the world is what it can currently see. Nothing is remembered between plans,
+  so it cannot return to a chest it filled an hour ago.
 * Baritone leaves behind any blocks it pillars up on to reach something. Fine for a solid structure,
   a problem for anything with redstone in it.
 * Baritone does not give up searching for a block that is not there, so a task for something

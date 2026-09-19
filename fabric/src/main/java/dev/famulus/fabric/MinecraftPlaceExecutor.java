@@ -5,10 +5,7 @@ import dev.famulus.core.PlannedTask;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
@@ -80,17 +77,11 @@ public final class MinecraftPlaceExecutor implements ContainerExecutor {
             fail("the spot is out of reach; travel closer first");
             return;
         }
-        Inventory inventory = client.player.getInventory();
-        for (int slot = 0; slot < Inventory.getSelectionSize(); slot++) {
-            ItemStack stack = inventory.getItem(slot);
-            if (!stack.isEmpty()
-                    && BuiltInRegistries.ITEM.getKey(stack.getItem()).toString().equals(itemId)) {
-                inventory.setSelectedSlot(slot);
-                advance(Step.PLACING, "placing " + itemId);
-                return;
-            }
+        switch (Hotbar.select(client, itemId)) {
+            case SELECTED -> advance(Step.PLACING, "placing " + itemId);
+            case MOVING -> note = "moving " + itemId + " to the hotbar";
+            case ABSENT -> fail("no " + itemId + " in the inventory");
         }
-        fail(itemId + " is not in the hotbar");
     }
 
     private void place(Minecraft client) {

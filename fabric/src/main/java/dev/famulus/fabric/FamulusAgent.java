@@ -55,11 +55,13 @@ public final class FamulusAgent {
     private final DepositController transfers;
     private final MinecraftContainerExecutor containerExecutor = new MinecraftContainerExecutor();
     private final MinecraftCraftExecutor craftExecutor = new MinecraftCraftExecutor();
+    private final MinecraftSmeltExecutor smeltExecutor = new MinecraftSmeltExecutor();
     private final MinecraftPlaceExecutor placeExecutor = new MinecraftPlaceExecutor();
     private final MinecraftInteractExecutor interactExecutor = new MinecraftInteractExecutor();
     private final BuildController interacting;
     private final DepositController placing;
     private final DepositController crafting;
+    private final DepositController smelting;
     private final BaritoneExplorer explorer = new BaritoneExplorer();
     private final long exploreTimeoutMillis;
     private final PolicyGate gate;
@@ -94,6 +96,7 @@ public final class FamulusAgent {
         this.traveller = new TravelController(travelExecutor, gatherConfig);
         this.transfers = new DepositController(containerExecutor, gatherConfig);
         this.crafting = new DepositController(craftExecutor, gatherConfig);
+        this.smelting = new DepositController(smeltExecutor, gatherConfig);
         this.placing = new DepositController(placeExecutor, gatherConfig);
         this.interacting = new BuildController(interactExecutor, gatherConfig);
         this.exploreTimeoutMillis = exploreTimeoutMillis;
@@ -178,6 +181,8 @@ public final class FamulusAgent {
             containerExecutor.tick(client);
         } else if (current instanceof PlannedTask.Craft) {
             craftExecutor.tick(client);
+        } else if (current instanceof PlannedTask.Smelt) {
+            smeltExecutor.tick(client);
         } else if (current instanceof PlannedTask.PlaceBlock) {
             placeExecutor.tick(client);
         } else if (current instanceof PlannedTask.Interact) {
@@ -263,6 +268,10 @@ public final class FamulusAgent {
         }
         if (task instanceof PlannedTask.Craft) {
             runTransfer(client, nowMillis, task, crafting);
+            return;
+        }
+        if (task instanceof PlannedTask.Smelt) {
+            runTransfer(client, nowMillis, task, smelting);
             return;
         }
         if (task instanceof PlannedTask.PlaceBlock) {
@@ -454,6 +463,8 @@ public final class FamulusAgent {
             itemId = withdraw.itemId();
         } else if (transferTask instanceof PlannedTask.Craft craft) {
             itemId = craft.itemId();
+        } else if (transferTask instanceof PlannedTask.Smelt smelt) {
+            itemId = smelt.itemId();
         } else {
             itemId = ((PlannedTask.PlaceBlock) transferTask).itemId();
         }
@@ -462,7 +473,8 @@ public final class FamulusAgent {
         }
         int held = MinecraftObserver.countAll(client, java.util.List.of(itemId)).get(itemId);
         boolean storage = containerExecutor.step() != MinecraftContainerExecutor.Step.FAILED
-                && craftExecutor.step() != MinecraftCraftExecutor.Step.FAILED;
+                && craftExecutor.step() != MinecraftCraftExecutor.Step.FAILED
+                && smeltExecutor.step() != MinecraftSmeltExecutor.Step.FAILED;
         return new DepositSnapshot(true, client.player.isAlive() && !client.player.isRemoved(),
                 FamulusClient.OBSERVER.worldKey(client), held, storage);
     }
@@ -557,6 +569,7 @@ public final class FamulusAgent {
         traveller.stop(reason);
         transfers.stop(reason);
         crafting.stop(reason);
+        smelting.stop(reason);
         placing.stop(reason);
         interacting.stop(reason);
         if (exploring) {

@@ -50,7 +50,8 @@ public final class ChatPlanner implements PlannerClient {
             throw new PlannerException("The planner returned HTTP " + response.statusCode()
                     + ": " + abbreviate(response.body()));
         }
-        return PlanParser.parse(content(response.body()), request.gatherableItems());
+        return PlanParser.parse(content(response.body()), request.gatherableItems(),
+                request.smeltRecipes());
     }
 
     private String systemPrompt(PlanRequest request) {
@@ -71,6 +72,10 @@ public final class ChatPlanner implements PlannerClient {
                  craft    - craft an item using the recipe book. "item", "count". The agent
                             opens a crafting table if one is within reach, otherwise it uses
                             the 2x2 grid, so plan a table first for anything larger.
+                 smelt    - cook something in a furnace. "item", "count", and optionally
+                            "input" when the default below is not what you have. The agent
+                            needs a furnace within a few blocks and fuel in the inventory;
+                            coal, charcoal or planks all burn.
                  place    - put one held block into the world. "item", "x", "y", "z".
                  build    - place a saved blueprint. "blueprint", optionally "x", "y", "z".
                  travel   - walk somewhere. "x", "z", optionally "y".
@@ -81,8 +86,10 @@ public final class ChatPlanner implements PlannerClient {
                             door or bed. "target".
 
                Rules:
-                 - "count" is the TOTAL the player should end up holding, not how many to
-                   collect. A gather of 32 when 20 are already held collects 12.
+                 - For gather and mine, "count" is the TOTAL to end up holding, so a gather
+                   of 32 when 20 are already held collects 12.
+                 - For craft and smelt, "count" is how many MORE to make.
+                 - For deposit and withdraw, "count" is how many to move.
                  - Maximum %d tasks, and no count above %d.
                  - Coordinates are absolute world positions, not offsets. Only give ones you
                    can justify from the state below.
@@ -90,6 +97,8 @@ public final class ChatPlanner implements PlannerClient {
                    travel task first if the state below does not mention one nearby.
                  - These items can be gathered by name, and a gather naming anything else is
                    rejected outright:
+                   %s
+                 - These can be smelted, shown as the result from its usual input:
                    %s
                  - Order matters. Materials before the craft that consumes them, the crafting
                    table before the craft, the travel before the deposit.
@@ -101,7 +110,19 @@ public final class ChatPlanner implements PlannerClient {
                %s
                """.formatted(PlanParser.MAX_TASKS, PlanParser.MAX_COUNT,
                 String.join(", ", request.gatherableItems().stream().sorted().toList()),
+                describeSmelting(request),
                 request.context());
+    }
+
+    private static String describeSmelting(PlanRequest request) {
+        if (request.smeltRecipes().isEmpty()) {
+            return "nothing, no furnace recipes are configured";
+        }
+        return request.smeltRecipes().entrySet().stream()
+                .sorted(java.util.Map.Entry.comparingByKey())
+                .map(recipe -> recipe.getKey() + " from " + recipe.getValue())
+                .reduce((a, b) -> a + ", " + b)
+                .orElse("nothing");
     }
 
     private HttpRequest build(PlanRequest request) {

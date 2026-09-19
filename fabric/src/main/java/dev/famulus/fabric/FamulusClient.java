@@ -150,6 +150,19 @@ public final class FamulusClient implements ClientModInitializer {
                                                         new PlannedTask.Craft("c1",
                                                                 context.getArgument("item", Identifier.class).toString(),
                                                                 IntegerArgumentType.getInteger(context, "count")))))))
+                        .then(literal("smelt")
+                                .then(argument("item", IdentifierArgument.id())
+                                        .suggests((context, builder) -> {
+                                            SmeltCatalog.items().stream()
+                                                    .filter(id -> id.startsWith(builder.getRemainingLowerCase())
+                                                            || id.substring("minecraft:".length()).startsWith(builder.getRemainingLowerCase()))
+                                                    .forEach(builder::suggest);
+                                            return builder.buildFuture();
+                                        })
+                                        .then(argument("count", IntegerArgumentType.integer(1, 2304))
+                                                .executes(context -> smelt(context.getSource(),
+                                                        context.getArgument("item", Identifier.class),
+                                                        IntegerArgumentType.getInteger(context, "count"))))))
                         .then(literal("build")
                                 .then(argument("schematic", StringArgumentType.string())
                                         .suggests(FamulusClient::suggestSchematics)
@@ -373,6 +386,16 @@ public final class FamulusClient implements ClientModInitializer {
         }
         source.sendFeedback(Component.literal("[Famulus] " + task.describe()));
         return 1;
+    }
+
+    private int smelt(FabricClientCommandSource source, Identifier item, int count) {
+        String itemId = item.toString();
+        if (!SmeltCatalog.supports(itemId)) {
+            return error(source, "No furnace recipe for " + itemId
+                    + ". Use tab completion for the ones that are known.");
+        }
+        return single(source, new PlannedTask.Smelt("s1",
+                SmeltCatalog.primaryInputFor(itemId), itemId, count));
     }
 
     private int build(FabricClientCommandSource source, String schematic) {

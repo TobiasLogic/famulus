@@ -3,6 +3,7 @@ package dev.famulus.planner;
 import dev.famulus.core.PlannedTask;
 import dev.famulus.core.PlannerException;
 import dev.famulus.core.TaskPlan;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -12,8 +13,12 @@ class PlanParserTest {
     private static final Set<String> GATHERABLE =
             Set.of("minecraft:oak_log", "minecraft:dirt", "minecraft:sand");
 
+    private static final Map<String, String> SMELTABLE = Map.of(
+            "minecraft:iron_ingot", "minecraft:raw_iron",
+            "minecraft:glass", "minecraft:sand");
+
     private static TaskPlan parse(String raw) throws PlannerException {
-        return PlanParser.parse(raw, GATHERABLE);
+        return PlanParser.parse(raw, GATHERABLE, SMELTABLE);
     }
 
     private static PlannerException refuse(String raw) {
@@ -290,5 +295,53 @@ class PlanParserTest {
         assertTrue(refuse("""
                 {"goal":"g","tasks":[{"type":"travel","x":99000000,"z":0}]}
                 """).getMessage().contains("world border"));
+    }
+
+    @Test
+    void aSmeltFillsInTheUsualInputWhenNoneIsNamed() throws Exception {
+        TaskPlan plan = parse("""
+                {"goal":"ingots","tasks":[{"type":"smelt","item":"minecraft:iron_ingot","count":5}]}
+                """);
+        PlannedTask.Smelt smelt = assertInstanceOf(PlannedTask.Smelt.class, plan.tasks().get(0));
+        assertEquals("minecraft:raw_iron", smelt.inputId());
+        assertEquals("minecraft:iron_ingot", smelt.itemId());
+        assertEquals(5, smelt.count());
+    }
+
+    @Test
+    void anExplicitSmeltingInputWins() throws Exception {
+        TaskPlan plan = parse("""
+                {"goal":"ingots","tasks":[{"type":"smelt","input":"deepslate_iron_ore",
+                 "item":"minecraft:iron_ingot","count":5}]}
+                """);
+        PlannedTask.Smelt smelt = assertInstanceOf(PlannedTask.Smelt.class, plan.tasks().get(0));
+        assertEquals("minecraft:deepslate_iron_ore", smelt.inputId(),
+                "A bare name should be given the minecraft namespace");
+    }
+
+    @Test
+    void aSmeltIntoSomethingNoFurnaceMakesIsRefused() {
+        assertTrue(refuse("""
+                {"goal":"g","tasks":[{"type":"smelt","item":"minecraft:diamond","count":1}]}
+                """).getMessage().contains("no known recipe"));
+    }
+
+    @Test
+    void theWholeIronPickaxeChainParses() throws Exception {
+        TaskPlan plan = parse("""
+                {"goal":"an iron pickaxe from nothing","tasks":[
+                  {"id":"t1","type":"gather","item":"minecraft:oak_log","count":8},
+                  {"id":"t2","type":"craft","item":"minecraft:crafting_table","count":1},
+                  {"id":"t3","type":"place","item":"minecraft:crafting_table","x":10,"y":64,"z":10},
+                  {"id":"t4","type":"mine","block":"minecraft:iron_ore","item":"minecraft:raw_iron","count":3},
+                  {"id":"t5","type":"craft","item":"minecraft:furnace","count":1},
+                  {"id":"t6","type":"place","item":"minecraft:furnace","x":11,"y":64,"z":10},
+                  {"id":"t7","type":"smelt","item":"minecraft:iron_ingot","count":3},
+                  {"id":"t8","type":"craft","item":"minecraft:iron_pickaxe","count":1}]}
+                """);
+        assertEquals(8, plan.tasks().size());
+        assertTrue(plan.isExecutable(), "Every step of the pickaxe chain needs an executor");
+        assertEquals("smelt minecraft:raw_iron into 3 minecraft:iron_ingot",
+                plan.tasks().get(6).describe());
     }
 }

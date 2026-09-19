@@ -51,6 +51,25 @@ public sealed interface PlannedTask {
         }
     }
 
+    record Smelt(String id, String inputId, String itemId, int count) implements PlannedTask {
+        public Smelt {
+            requireId(id);
+            requireItem(inputId);
+            requireItem(itemId);
+            requireCount(count, "Smelt");
+        }
+
+        @Override
+        public AgentAction action() {
+            return AgentAction.SMELT;
+        }
+
+        @Override
+        public String describe() {
+            return "smelt " + inputId + " into " + count + " " + itemId;
+        }
+    }
+
     record PlaceBlock(String id, String itemId, int x, int y, int z) implements PlannedTask {
         public PlaceBlock {
             requireId(id);

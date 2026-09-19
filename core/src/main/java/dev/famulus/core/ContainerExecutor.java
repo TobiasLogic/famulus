@@ -8,4 +8,6 @@ public interface ContainerExecutor {
     boolean isActive();
 
     String lastStep();
+
+    default void finish() {}
 }

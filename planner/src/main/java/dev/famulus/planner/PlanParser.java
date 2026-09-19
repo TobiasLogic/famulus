@@ -10,6 +10,7 @@ import dev.famulus.core.PlannerException;
 import dev.famulus.core.TaskPlan;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public final class PlanParser {
@@ -24,6 +25,11 @@ public final class PlanParser {
     private PlanParser() {}
 
     public static TaskPlan parse(String raw, Set<String> gatherable) throws PlannerException {
+        return parse(raw, gatherable, Map.of());
+    }
+
+    public static TaskPlan parse(String raw, Set<String> gatherable, Map<String, String> smeltable)
+            throws PlannerException {
         JsonObject root = readObject(raw);
 
         String goal = string(root, "goal");
@@ -54,7 +60,7 @@ public final class PlanParser {
                 throw new PlannerException("Task " + (i + 1) + " is not an object.");
             }
             try {
-                tasks.add(readTask(array.get(i).getAsJsonObject(), i, gatherable, rejected));
+                tasks.add(readTask(array.get(i).getAsJsonObject(), i, gatherable, smeltable, rejected));
             } catch (IllegalArgumentException invalid) {
                 throw new PlannerException("Task " + (i + 1) + " is not valid: "
                         + invalid.getMessage(), invalid);
@@ -78,7 +84,8 @@ public final class PlanParser {
     }
 
     private static PlannedTask readTask(JsonObject task, int index, Set<String> gatherable,
-                                        List<String> rejected) throws PlannerException {
+                                        Map<String, String> smeltable, List<String> rejected)
+            throws PlannerException {
         String id = string(task, "id");
         if (id == null || id.isBlank()) {
             id = "t" + (index + 1);
@@ -108,6 +115,28 @@ public final class PlanParser {
                     yield new PlannedTask.Gather(id, item, count);
                 }
                 yield new PlannedTask.Mine(id, blocks, item, count);
+            }
+            case "smelt", "cook" -> {
+                String item = requireItem(task, index);
+                int count = requireCount(task, index);
+                String input = string(task, "input");
+                if (input == null || input.isBlank()) {
+                    input = smeltable.get(item);
+                    if (input == null) {
+                        throw new PlannerException("Task " + (index + 1) + " smelts into " + item
+                                + ", which no known recipe produces. Name an \"input\" to be explicit.");
+                    }
+                } else {
+                    input = input.trim().toLowerCase(java.util.Locale.ROOT);
+                    if (!input.contains(":")) {
+                        input = "minecraft:" + input;
+                    }
+                    if (!PlannedTask.RESOURCE_ID.matcher(input).matches()) {
+                        throw new PlannerException("Task " + (index + 1)
+                                + " has an invalid smelting input: " + input);
+                    }
+                }
+                yield new PlannedTask.Smelt(id, input, item, count);
             }
             case "place", "place_block" -> new PlannedTask.PlaceBlock(id, requireItem(task, index),
                     requireCoordinate(task, "x", index),

@@ -22,7 +22,13 @@ class TransferControllerTest {
         boolean active;
         int starts;
         int cancels;
+        int finishes;
         RuntimeException startFailure;
+
+        @Override
+        public void finish() {
+            finishes++;
+        }
 
         @Override
         public void start(PlannedTask task) {
@@ -265,5 +271,50 @@ class TransferControllerTest {
                 () -> new PlannedTask.Withdraw("w", "oak_log", 1));
         assertThrows(IllegalArgumentException.class,
                 () -> new PlannedTask.Deposit("d", "minecraft:dirt", 0));
+    }
+
+    @Test
+    void aSmeltCountsUpwardsLikeACraftRatherThanDownwards() {
+        FakeContainer executor = new FakeContainer();
+        DepositController controller = new DepositController(executor, CONFIG);
+        controller.start(new PlannedTask.Smelt("s1", "minecraft:raw_iron",
+                "minecraft:iron_ingot", 3), holding(1), 0);
+        assertTrue(controller.isRunning(), "Holding 1 of 3 wanted is not finished");
+
+        controller.tick(holding(3), 100);
+        assertTrue(controller.isRunning(), "3 held is still short of the 1 plus 3 target");
+
+        executor.active = false;
+        controller.tick(holding(4), 200);
+        assertEquals(TaskStatus.SUCCESS, controller.result().status());
+    }
+
+    @Test
+    void reachingTheTargetAsksTheExecutorToWindUpRatherThanCuttingItOff() {
+        FakeContainer executor = new FakeContainer();
+        DepositController controller = new DepositController(executor, CONFIG);
+        controller.start(new PlannedTask.Smelt("s1", "minecraft:raw_iron",
+                "minecraft:iron_ingot", 2), holding(0), 0);
+        assertEquals(0, executor.finishes);
+
+        controller.tick(holding(2), 100);
+        assertEquals(1, executor.finishes, "A satisfied task should tell the executor to finish");
+        assertTrue(controller.isRunning(), "It is not done until the executor says it is");
+        assertEquals(0, executor.cancels, "Winding up is not the same as cancelling");
+
+        executor.active = false;
+        controller.tick(holding(2), 200);
+        assertEquals(TaskStatus.SUCCESS, controller.result().status());
+    }
+
+    @Test
+    void aSmeltWithNoFurnaceReachableFailsAsAMissingResource() {
+        FakeContainer executor = new FakeContainer();
+        DepositController controller = new DepositController(executor, CONFIG);
+        controller.start(new PlannedTask.Smelt("s1", "minecraft:raw_iron",
+                "minecraft:iron_ingot", 2),
+                new DepositSnapshot(true, true, "session:overworld", 0, false), 0);
+        assertEquals(TaskStatus.RESOURCE_MISSING, controller.result().status());
+        assertEquals(0, executor.starts, "Nothing should be started without a furnace");
     }
 }

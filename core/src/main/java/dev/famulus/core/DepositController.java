@@ -46,11 +46,15 @@ public final class DepositController {
         } else if (nextTask instanceof PlannedTask.Craft craft) {
             withdrawing = true;
             amount = craft.count();
+        } else if (nextTask instanceof PlannedTask.Smelt smelt) {
+            withdrawing = true;
+            amount = smelt.count();
         } else if (nextTask instanceof PlannedTask.PlaceBlock) {
             withdrawing = false;
             amount = 1;
         } else {
-            throw new IllegalArgumentException("Not a transfer or craft task: " + nextTask.describe());
+            throw new IllegalArgumentException("Not a transfer, craft or smelt task: "
+                    + nextTask.describe());
         }
         task = nextTask;
         initialWorldKey = snapshot.worldKey();
@@ -104,9 +108,17 @@ public final class DepositController {
             recover("Could not inspect the container handler: " + describe(failure), nowMillis);
             return;
         }
-        if (isSatisfied() && !stillWorking) {
-            finish(TaskStatus.SUCCESS, moved() + " moved");
-            return;
+        if (isSatisfied()) {
+            if (!stillWorking) {
+                finish(TaskStatus.SUCCESS, moved() + " moved");
+                return;
+            }
+            try {
+                executor.finish();
+            } catch (RuntimeException failure) {
+                recover("Could not wind up the container handler: " + describe(failure), nowMillis);
+                return;
+            }
         }
         if (madeProgress()) {
             bestHeld = held;

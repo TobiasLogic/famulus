@@ -112,8 +112,8 @@ public final class PlannerService {
         state = verb + model + "...";
         worker.execute(() -> {
             try {
-                TaskPlan plan = new ChatPlanner(config).plan(
-                        new PlanRequest(goal, context, GatherCatalog.items()));
+                TaskPlan plan = new ChatPlanner(config).plan(new PlanRequest(
+                        goal, context, GatherCatalog.items(), SmeltCatalog.recipes()));
                 sink.set(plan);
                 state = "plan ready: " + plan.tasks().size() + " tasks";
             } catch (PlannerException refused) {

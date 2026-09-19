@@ -199,6 +199,44 @@ public final class GatherClientGameTest implements FabricClientGameTest {
             context.takeScreenshot("famulus-place-done");
             require(placed, "The cobblestone should have been placed at 60,-60,62");
 
+            world.getServer().runCommand("setblock 60 -60 61 minecraft:furnace[facing=north]");
+            world.getServer().runCommand("item replace entity @a hotbar.4 with minecraft:raw_iron 5");
+            world.getServer().runCommand("item replace entity @a inventory.10 with minecraft:coal 3");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            int ingotsBefore = context.computeOnClient(GatherClientGameTest::ingotCount);
+
+            command(context, "/famulus smelt minecraft:iron_ingot 3");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 3600);
+            int ingotsAfter = context.computeOnClient(GatherClientGameTest::ingotCount);
+            int rawLeft = context.computeOnClient(GatherClientGameTest::rawIronCount);
+            System.out.println("[FamulusSmelt] iron ingots " + ingotsBefore + " -> " + ingotsAfter
+                    + ", raw iron left " + rawLeft);
+            context.takeScreenshot("famulus-smelt-done");
+            require(ingotsAfter == ingotsBefore + 3,
+                    "Smelting should have produced exactly 3 ingots, went from "
+                    + ingotsBefore + " to " + ingotsAfter);
+            require(rawLeft == 2,
+                    "Only the 3 raw iron asked for should have been consumed, 2 should remain, found "
+                    + rawLeft);
+
+            world.getServer().runCommand("item replace entity @a hotbar.4 with minecraft:air");
+            world.getServer().runCommand("item replace entity @a inventory.11 with minecraft:dirt 1");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+
+            command(context, "/famulus place minecraft:dirt 59 -60 62");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 600);
+            boolean fromBackpack = context.computeOnClient(client -> client.level
+                    .getBlockState(new net.minecraft.core.BlockPos(59, -60, 62))
+                    .is(net.minecraft.world.level.block.Blocks.DIRT));
+            System.out.println("[FamulusHotbar] placed from main inventory=" + fromBackpack);
+            context.takeScreenshot("famulus-hotbar-place-done");
+            require(fromBackpack,
+                    "A block held outside the hotbar should be brought to hand and placed");
+
             world.getServer().runCommand("setblock 61 -60 60 minecraft:lever[face=floor,facing=north]");
             context.waitTick();
             world.getConnection().waitForClientboundPackets();
@@ -254,6 +292,14 @@ public final class GatherClientGameTest implements FabricClientGameTest {
 
     private static int shulkerCount(Minecraft client) {
         return client.player.getInventory().countItem(Items.SHULKER_BOX);
+    }
+
+    private static int rawIronCount(Minecraft client) {
+        return client.player.getInventory().countItem(Items.RAW_IRON);
+    }
+
+    private static int ingotCount(Minecraft client) {
+        return client.player.getInventory().countItem(Items.IRON_INGOT);
     }
 
     private static int dirtCount(Minecraft client) {

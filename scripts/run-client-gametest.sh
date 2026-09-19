@@ -56,7 +56,7 @@ require_pattern '\[agent\] running (gather|mine .* for) 8 minecraft:dirt' \
 require_line 'plan PLAN_COMPLETE' \
     'the plan ran to completion'
 
-for shot in gather-running gather-completed inventory-32-oak-logs already-satisfied stopped plan-first-task plan-complete screen-agent screen-chat screen-build screen-settings deposit-done shulker-deposit craft-done mine-done place-done interact-done; do
+for shot in gather-running gather-completed inventory-32-oak-logs already-satisfied stopped plan-first-task plan-complete screen-agent screen-chat screen-build screen-settings deposit-done shulker-deposit craft-done mine-done place-done smelt-done hotbar-place-done interact-done; do
     if compgen -G "$run_dir/screenshots/*${shot}.png" > /dev/null; then
         echo "  ok   screenshot ${shot}"
     else
