@@ -128,6 +128,16 @@ public final class FamulusAgent {
         runner.start();
     }
 
+    public void tickEveryFrame(Minecraft client) {
+        if (!isRunning() || !taskStarted || runner.step() != PlanStep.RUN_CURRENT) {
+            return;
+        }
+        PlannedTask current = runner.current();
+        if (current instanceof PlannedTask.Deposit || current instanceof PlannedTask.Withdraw) {
+            containerExecutor.tick(client);
+        }
+    }
+
     public void tick(Minecraft client, long nowMillis) {
         if (!isRunning()) {
             return;
@@ -273,7 +283,6 @@ public final class FamulusAgent {
                 return;
             }
         } else {
-            containerExecutor.tick(client);
             transfers.tick(observeTransfer(client, transferTask), nowMillis);
         }
         if (!transfers.isRunning()) {

@@ -23,6 +23,7 @@ import net.minecraft.world.phys.Vec3;
 public final class MinecraftContainerExecutor implements ContainerExecutor {
     public static final int SEARCH_RADIUS = 4;
     private static final int STEP_TIMEOUT_TICKS = 100;
+    private static final int RECLAIM_TIMEOUT_TICKS = 300;
 
     public enum Step {
         IDLE, LOCATING, PLACING, OPENING, TRANSFERRING, CLOSING, RECLAIMING, DONE, FAILED
@@ -36,6 +37,7 @@ public final class MinecraftContainerExecutor implements ContainerExecutor {
     private BlockPos container;
     private boolean placedShulker;
     private int ticksInStep;
+    private int ticksSinceBroken;
 
     @Override
     public void start(PlannedTask task) {
@@ -53,6 +55,7 @@ public final class MinecraftContainerExecutor implements ContainerExecutor {
         container = null;
         placedShulker = false;
         ticksInStep = 0;
+        ticksSinceBroken = 0;
         step = Step.LOCATING;
         note = "looking for a container";
     }
@@ -71,7 +74,7 @@ public final class MinecraftContainerExecutor implements ContainerExecutor {
     public void cancel() {
         Minecraft client = Minecraft.getInstance();
         if (client.player != null && client.player.containerMenu != client.player.inventoryMenu) {
-            client.player.clientSideCloseContainer();
+            client.player.closeContainer();
         }
         step = Step.IDLE;
         note = "cancelled";
@@ -85,7 +88,8 @@ public final class MinecraftContainerExecutor implements ContainerExecutor {
         if (!isActive() || client.player == null || client.level == null) {
             return;
         }
-        if (++ticksInStep > STEP_TIMEOUT_TICKS) {
+        int budget = step == Step.RECLAIMING ? RECLAIM_TIMEOUT_TICKS : STEP_TIMEOUT_TICKS;
+        if (++ticksInStep > budget) {
             fail(step + " took too long");
             return;
         }
@@ -257,7 +261,7 @@ public final class MinecraftContainerExecutor implements ContainerExecutor {
 
     private void close(Minecraft client) {
         if (client.player.containerMenu != client.player.inventoryMenu) {
-            client.player.clientSideCloseContainer();
+            client.player.closeContainer();
             return;
         }
         advance(placedShulker ? Step.RECLAIMING : Step.DONE,
@@ -266,22 +270,35 @@ public final class MinecraftContainerExecutor implements ContainerExecutor {
 
     private void reclaim(Minecraft client) {
         if (!client.level.getBlockState(container).isAir()) {
-            client.gameMode.destroyBlock(container);
+            client.player.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
+                    Vec3.atCenterOf(container));
+            client.gameMode.continueDestroyBlock(container, faceToward(client));
+            client.player.swing(InteractionHand.MAIN_HAND);
+            ticksSinceBroken = 0;
             return;
         }
-        if (ticksInStep < 20) {
+        client.gameMode.stopDestroyBlock();
+        if (ticksSinceBroken < 60) {
+            ticksSinceBroken++;
             return;
         }
         advance(Step.DONE, "done");
     }
 
+    private Direction faceToward(Minecraft client) {
+        Vec3 fromBlock = client.player.position().subtract(Vec3.atCenterOf(container));
+        return Direction.getApproximateNearest(fromBlock.x, fromBlock.y, fromBlock.z);
+    }
+
     private void advance(Step next, String message) {
+        FamulusClient.LOGGER.info("[container] {} -> {} ({})", step, next, message);
         step = next;
         note = message;
         ticksInStep = 0;
     }
 
     private void fail(String message) {
+        FamulusClient.LOGGER.info("[container] {} -> FAILED ({})", step, message);
         step = Step.FAILED;
         note = message;
     }

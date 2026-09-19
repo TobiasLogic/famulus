@@ -14,7 +14,8 @@ Famulus is a Fabric client mod for **Minecraft Java 26.2**. It uses
 * Reads `.litematic`, `.schem` and `.schematic` files, lists the materials they need, and diffs that
   against what you are carrying
 * Builds a schematic once the materials are in hand
-* Stores items in a chest, or in a shulker box it places and picks back up when there is no chest
+* Stores items in a chest, or, when there is no chest, in a shulker box it places, fills, mines and
+  picks back up, so it can carry its own storage
 * Travels to a coordinate
 * Turns plain language into a plan, so "get me wood and dirt for a shelter" becomes real tasks
 * Stops, reports and asks for a new plan when something is genuinely stuck, instead of looping
@@ -151,8 +152,8 @@ Worth knowing before you expect too much:
 
 * Gathering covers logs, dirt, sand and red sand. Anything needing a specific tool, a recipe or a
   trade is refused with an explanation rather than attempted.
-* Depositing into a chest is tested in a live game. Placing a shulker box when no chest is nearby is
-  implemented but has not been exercised, so treat that path as untested.
+* Storing items works with a chest in reach, and with a shulker box when there is none. Both are
+  tested in a live game.
 * Crafting, placing single blocks and interacting with entities are not implemented. A plan that
   needs them is refused rather than half attempted.
 * Baritone leaves behind any blocks it pillars up on to reach something. Fine for a solid structure,

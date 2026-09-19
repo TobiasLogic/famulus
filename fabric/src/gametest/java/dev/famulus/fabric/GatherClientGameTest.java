@@ -131,6 +131,32 @@ public final class GatherClientGameTest implements FabricClientGameTest {
                     "Depositing 32 of 64 logs must leave exactly 32, found " + oakCount(client)));
             context.takeScreenshot("famulus-deposit-done");
 
+            world.getServer().runCommand("tp @a 40.5 -60 40.5 0 0");
+            world.getServer().runCommand("clear @a");
+            world.getServer().runCommand("item replace entity @a hotbar.0 with minecraft:oak_log 64");
+            world.getServer().runCommand("item replace entity @a hotbar.1 with minecraft:shulker_box 1");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            world.getConnection().waitForChunksRender();
+            context.waitFor(client -> shulkerCount(client) >= 1 && oakCount(client) == 64, 400);
+            int logsBefore = context.computeOnClient(GatherClientGameTest::oakCount);
+            System.out.println("[FamulusFixture] logs=" + logsBefore + " shulker="
+                    + context.computeOnClient(GatherClientGameTest::shulkerCount));
+            require(logsBefore >= 16, "Need at least 16 logs for the shulker phase");
+
+            command(context, "/famulus deposit minecraft:oak_log 16");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 2400);
+            context.takeScreenshot("famulus-shulker-deposit");
+            int logsAfter = context.computeOnClient(GatherClientGameTest::oakCount);
+            int shulkersAfter = context.computeOnClient(GatherClientGameTest::shulkerCount);
+            System.out.println("[FamulusShulker] logsAfter=" + logsAfter
+                    + " shulkers=" + shulkersAfter);
+            require(logsAfter == logsBefore - 16,
+                    "With no chest in reach the agent should have stored exactly 16 logs in a shulker "
+                    + "box, went from " + logsBefore + " to " + logsAfter);
+            require(shulkersAfter == 1, "The shulker box must be picked back up, found " + shulkersAfter);
+
             context.setScreen(FamulusClient::createScreen);
             context.waitTick();
             context.takeScreenshot("famulus-screen-agent");
@@ -157,6 +183,10 @@ public final class GatherClientGameTest implements FabricClientGameTest {
 
     private static int oakCount(Minecraft client) {
         return client.player.getInventory().countItem(Items.OAK_LOG);
+    }
+
+    private static int shulkerCount(Minecraft client) {
+        return client.player.getInventory().countItem(Items.SHULKER_BOX);
     }
 
     private static int dirtCount(Minecraft client) {

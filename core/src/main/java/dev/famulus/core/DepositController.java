@@ -91,7 +91,14 @@ public final class DepositController {
             finish(TaskStatus.TIMEOUT, "Transfer exceeded its time budget at " + moved() + " moved");
             return;
         }
-        if (isSatisfied()) {
+        final boolean stillWorking;
+        try {
+            stillWorking = executor.isActive();
+        } catch (RuntimeException failure) {
+            recover("Could not inspect the container handler: " + describe(failure), nowMillis);
+            return;
+        }
+        if (isSatisfied() && !stillWorking) {
             finish(TaskStatus.SUCCESS, moved() + " moved");
             return;
         }
@@ -112,14 +119,7 @@ public final class DepositController {
             recover("No items moved within the stall timeout", nowMillis);
             return;
         }
-        final boolean active;
-        try {
-            active = executor.isActive();
-        } catch (RuntimeException failure) {
-            recover("Could not inspect the container handler: " + describe(failure), nowMillis);
-            return;
-        }
-        if (active) {
+        if (stillWorking) {
             observedInactive = false;
             publish(TaskStatus.RUNNING, executor.lastStep());
             return;

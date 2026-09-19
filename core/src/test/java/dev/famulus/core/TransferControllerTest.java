@@ -82,6 +82,10 @@ class TransferControllerTest {
         controller.tick(holding(50), 1_000);
         assertEquals(TaskStatus.RUNNING, controller.result().status());
         controller.tick(holding(32), 2_000);
+        assertEquals(TaskStatus.RUNNING, controller.result().status(),
+                "Items having left is not enough while the handler is still working");
+        container.active = false;
+        controller.tick(holding(32), 2_500);
         assertEquals(TaskStatus.SUCCESS, controller.result().status());
         assertEquals(32, controller.result().currentCount());
         assertEquals(1, container.cancels);
@@ -94,6 +98,7 @@ class TransferControllerTest {
         controller.start(TAKE, holding(0), 0);
         controller.tick(holding(10), 1_000);
         assertEquals(TaskStatus.RUNNING, controller.result().status());
+        container.active = false;
         controller.tick(holding(32), 2_000);
         assertEquals(TaskStatus.SUCCESS, controller.result().status());
     }
@@ -123,12 +128,15 @@ class TransferControllerTest {
         DepositController takeFour = new DepositController(container, CONFIG);
         takeFour.start(new PlannedTask.Withdraw("w", "minecraft:dirt", 4), holding(99), 0);
         assertEquals(TaskStatus.RUNNING, takeFour.result().status());
+        container.active = false;
         takeFour.tick(holding(103), 500);
         assertEquals(TaskStatus.SUCCESS, takeFour.result().status());
 
-        DepositController storeAll = new DepositController(new FakeContainer(), CONFIG);
+        FakeContainer second = new FakeContainer();
+        DepositController storeAll = new DepositController(second, CONFIG);
         storeAll.start(new PlannedTask.Deposit("d", "minecraft:dirt", 20), holding(20), 0);
         assertEquals(TaskStatus.RUNNING, storeAll.result().status());
+        second.active = false;
         storeAll.tick(holding(0), 500);
         assertEquals(TaskStatus.SUCCESS, storeAll.result().status());
     }

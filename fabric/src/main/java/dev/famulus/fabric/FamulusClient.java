@@ -186,6 +186,9 @@ public final class FamulusClient implements ClientModInitializer {
                 client.setScreenAndShow(new FamulusScreen(agent, credentials, planner, 0));
             }
         }
+        if (agent != null && agent.isRunning()) {
+            agent.tickEveryFrame(client);
+        }
         if (agent != null && agent.isRunning() && ++agentTicks % config.observationIntervalTicks() == 0) {
             try {
                 agent.tick(client, now());
