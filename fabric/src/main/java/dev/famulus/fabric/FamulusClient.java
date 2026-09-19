@@ -163,6 +163,9 @@ public final class FamulusClient implements ClientModInitializer {
                                                 .executes(context -> smelt(context.getSource(),
                                                         context.getArgument("item", Identifier.class),
                                                         IntegerArgumentType.getInteger(context, "count"))))))
+                        .then(literal("eat")
+                                .executes(context -> single(context.getSource(),
+                                        new PlannedTask.Eat("e1", 18))))
                         .then(literal("build")
                                 .then(argument("schematic", StringArgumentType.string())
                                         .suggests(FamulusClient::suggestSchematics)

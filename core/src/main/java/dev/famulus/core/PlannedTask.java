@@ -70,6 +70,25 @@ public sealed interface PlannedTask {
         }
     }
 
+    record Eat(String id, int targetFood) implements PlannedTask {
+        public Eat {
+            requireId(id);
+            if (targetFood < 1 || targetFood > 20) {
+                throw new IllegalArgumentException("Food level must be between 1 and 20: " + targetFood);
+            }
+        }
+
+        @Override
+        public AgentAction action() {
+            return AgentAction.EAT;
+        }
+
+        @Override
+        public String describe() {
+            return "eat until food is " + targetFood + "/20";
+        }
+    }
+
     record PlaceBlock(String id, String itemId, int x, int y, int z) implements PlannedTask {
         public PlaceBlock {
             requireId(id);

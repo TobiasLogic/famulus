@@ -138,6 +138,10 @@ public final class PlanParser {
                 }
                 yield new PlannedTask.Smelt(id, input, item, count);
             }
+            case "eat", "feed" -> {
+                int level = integer(task, "food", 18);
+                yield new PlannedTask.Eat(id, Math.max(1, Math.min(20, level)));
+            }
             case "place", "place_block" -> new PlannedTask.PlaceBlock(id, requireItem(task, index),
                     requireCoordinate(task, "x", index),
                     requireCoordinate(task, "y", index),

@@ -282,6 +282,27 @@ public final class GatherClientGameTest implements FabricClientGameTest {
             require(fromBackpack,
                     "A block held outside the hotbar should be brought to hand and placed");
 
+            world.getServer().runCommand("item replace entity @a hotbar.7 with minecraft:bread 5");
+            world.getServer().runCommand("effect give @a minecraft:hunger 30 255 true");
+            context.waitFor(client -> client.player.getFoodData().getFoodLevel() <= 4, 900);
+            world.getServer().runCommand("effect clear @a minecraft:hunger");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            int foodBefore = context.computeOnClient(
+                    client -> client.player.getFoodData().getFoodLevel());
+
+            command(context, "/famulus eat");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 1200);
+            int foodAfter = context.computeOnClient(
+                    client -> client.player.getFoodData().getFoodLevel());
+            System.out.println("[FamulusEat] food " + foodBefore + " -> " + foodAfter);
+            context.takeScreenshot("famulus-eat-done");
+            require(foodAfter > foodBefore,
+                    "Eating should have raised the food level, " + foodBefore + " -> " + foodAfter);
+            require(foodAfter >= 12,
+                    "It should have eaten more than one bread to get near full, food=" + foodAfter);
+
             world.getServer().runCommand("setblock 61 -60 60 minecraft:lever[face=floor,facing=north]");
             context.waitTick();
             world.getConnection().waitForClientboundPackets();

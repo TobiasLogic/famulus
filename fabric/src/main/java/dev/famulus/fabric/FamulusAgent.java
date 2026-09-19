@@ -40,6 +40,8 @@ public final class FamulusAgent {
     private static final int REPLAN_TIMEOUT_TICKS = 600;
     private static final int MAX_REPLANS = 2;
     private static final int MAX_REPLAN_REQUESTS = 20;
+    private static final int HUNGRY_AT = 6;
+    private static final int EAT_UP_TO = 18;
 
     public interface Replanner {
         boolean request(String goal, String situation, Minecraft client);
@@ -58,7 +60,9 @@ public final class FamulusAgent {
     private final MinecraftSmeltExecutor smeltExecutor = new MinecraftSmeltExecutor();
     private final MinecraftPlaceExecutor placeExecutor = new MinecraftPlaceExecutor();
     private final MinecraftInteractExecutor interactExecutor = new MinecraftInteractExecutor();
+    private final MinecraftEatExecutor eatExecutor = new MinecraftEatExecutor();
     private final BuildController interacting;
+    private final BuildController eating;
     private final DepositController placing;
     private final DepositController crafting;
     private final DepositController smelting;
@@ -99,6 +103,7 @@ public final class FamulusAgent {
         this.smelting = new DepositController(smeltExecutor, gatherConfig);
         this.placing = new DepositController(placeExecutor, gatherConfig);
         this.interacting = new BuildController(interactExecutor, gatherConfig);
+        this.eating = new BuildController(eatExecutor, gatherConfig);
         this.exploreTimeoutMillis = exploreTimeoutMillis;
         this.credentials = credentials;
         reloadPolicy();
@@ -187,6 +192,8 @@ public final class FamulusAgent {
             placeExecutor.tick(client);
         } else if (current instanceof PlannedTask.Interact) {
             interactExecutor.tick(client);
+        } else if (current instanceof PlannedTask.Eat) {
+            eatExecutor.tick(client);
         }
     }
 
@@ -254,6 +261,9 @@ public final class FamulusAgent {
 
     private void runCurrent(Minecraft client, long nowMillis) {
         PlannedTask task = runner.current();
+        if (!taskStarted && insertMealIfStarving(client, task)) {
+            return;
+        }
         if (task instanceof PlannedTask.Build buildTask) {
             runBuild(client, nowMillis, buildTask);
             return;
@@ -280,6 +290,10 @@ public final class FamulusAgent {
         }
         if (task instanceof PlannedTask.Interact interactTask) {
             runInteract(client, nowMillis, interactTask);
+            return;
+        }
+        if (task instanceof PlannedTask.Eat eatTask) {
+            runEat(client, nowMillis, eatTask);
             return;
         }
         if (task instanceof PlannedTask.Mine mineTask) {
@@ -314,6 +328,36 @@ public final class FamulusAgent {
         if (!interacting.isRunning()) {
             finishTask(interacting.result());
         }
+    }
+
+    private void runEat(Minecraft client, long nowMillis, PlannedTask.Eat eatTask) {
+        if (!taskStarted) {
+            taskStarted = true;
+            note("running " + eatTask.describe());
+            try {
+                eating.start(eatTask, observeEat(client, eatTask), nowMillis);
+            } catch (RuntimeException failure) {
+                finishTask(new TaskResult(TaskStatus.FAILED,
+                        "Could not start: " + failure.getMessage(), 0, 0, 0));
+                return;
+            }
+        } else {
+            eating.tick(observeEat(client, eatTask), nowMillis);
+        }
+        if (!eating.isRunning()) {
+            finishTask(eating.result());
+        }
+    }
+
+    private BuildSnapshot observeEat(Minecraft client, PlannedTask.Eat eatTask) {
+        if (client.level == null || client.player == null) {
+            return new BuildSnapshot(false, false, "disconnected", 0, 0, false);
+        }
+        int food = client.player.getFoodData().getFoodLevel();
+        int remaining = Math.max(0, eatTask.targetFood() - food);
+        return new BuildSnapshot(true, client.player.isAlive() && !client.player.isRemoved(),
+                FamulusClient.OBSERVER.worldKey(client), remaining, eatTask.targetFood(),
+                MinecraftEatExecutor.hasFood(client));
     }
 
     private BuildSnapshot observeInteract(Minecraft client) {
@@ -363,6 +407,29 @@ public final class FamulusAgent {
         if (!gather.isRunning()) {
             finishTask(gather.result());
         }
+    }
+
+    private boolean insertMealIfStarving(Minecraft client, PlannedTask task) {
+        if (task instanceof PlannedTask.Eat || client.player == null) {
+            return false;
+        }
+        if (client.player.getFoodData().getFoodLevel() > HUNGRY_AT) {
+            return false;
+        }
+        if (!MinecraftEatExecutor.hasFood(client)
+                || runner.insertedCount() >= PlanRunner.MAX_INSERTED_TASKS) {
+            return false;
+        }
+        PlannedTask meal = new PlannedTask.Eat("meal-" + runner.insertedCount(), EAT_UP_TO);
+        try {
+            runner.insertBeforeCurrent(meal, "food is down to "
+                    + client.player.getFoodData().getFoodLevel() + "/20");
+        } catch (RuntimeException refused) {
+            note("could not add a meal: " + refused.getMessage());
+            return false;
+        }
+        note("hungry, eating before carrying on");
+        return true;
     }
 
     private boolean insertToolCraft(Minecraft client, ToolCheck.Verdict tools) {
@@ -604,6 +671,7 @@ public final class FamulusAgent {
         smelting.stop(reason);
         placing.stop(reason);
         interacting.stop(reason);
+        eating.stop(reason);
         if (exploring) {
             explorer.cancel();
             exploring = false;
