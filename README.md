@@ -21,6 +21,7 @@ Famulus is a Fabric client mod for **Minecraft Java 26.2**. It uses
   inventory grid when it is not
 * Smelts in a furnace, choosing its own fuel from what you carry, and consumes only as much input as
   the task asked for
+* Refuses to start mining something its tools cannot drop, and says which tool is needed
 * Mines a named block for its drop, so stone gives cobblestone and ores give what they drop
 * Places a single block at a coordinate
 * Uses a block, such as flipping a lever or opening a door, and checks it actually changed
@@ -176,8 +177,10 @@ Worth knowing before you expect too much:
   changing state. Trading with villagers and other entity interactions are not implemented.
 * There is no combat, no eating and no armour handling, so it cannot defend itself, feed itself or
   survive a night it was not sent indoors for.
-* Nothing checks that you are carrying the right tool. Asking it to mine diamond ore with a wooden
-  pickaxe fails on the stall timeout rather than saying what is wrong.
+* It checks you are carrying a tool that will actually drop the block before it starts, using the
+  game's own rules rather than a table of its own, and picks the fastest suitable one you have. It
+  cannot yet craft the missing tool by itself, so with no model configured a missing pickaxe ends
+  the plan rather than adding a step to make one.
 * Smelting needs a furnace already within a few blocks and fuel already in the inventory. It will
   not build or place one for you unless the plan says to.
 * What it knows about the world is what it can currently see. Nothing is remembered between plans,

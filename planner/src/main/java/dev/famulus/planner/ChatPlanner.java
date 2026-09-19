@@ -102,6 +102,9 @@ public final class ChatPlanner implements PlannerClient {
                    %s
                  - Order matters. Materials before the craft that consumes them, the crafting
                    table before the craft, the travel before the deposit.
+                 - Breaking stone, ore and metal needs a pickaxe good enough for it, and a wooden
+                   one will not drop iron or a stone one diamond. The state below lists the tools
+                   being carried, so craft the pickaxe first when it is missing.
                  - Prefer few tasks. If the goal cannot be met, say so in "goal" and give the
                    tasks that get closest rather than inventing ones that will fail.
                  - No prose, no markdown fences, no comments. JSON only.

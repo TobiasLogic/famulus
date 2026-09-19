@@ -175,11 +175,29 @@ public final class GatherClientGameTest implements FabricClientGameTest {
 
             world.getServer().runCommand("tp @a 60.5 -60 60.5 0 0");
             world.getServer().runCommand("fill 62 -60 60 66 -60 64 minecraft:stone");
-            world.getServer().runCommand("item replace entity @a hotbar.3 with minecraft:diamond_pickaxe 1");
             context.waitTick();
             world.getConnection().waitForClientboundPackets();
             world.getConnection().waitForChunksRender();
             context.waitFor(client -> cobbleCount(client) == 0, 200);
+
+            long refusedAt = System.currentTimeMillis();
+            command(context, "/famulus mine minecraft:stone minecraft:cobblestone 8");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 1200);
+            long refusalMillis = System.currentTimeMillis() - refusedAt;
+            String refusal = lastLogMentioning("pickaxe");
+            System.out.println("[FamulusTool] refused in " + refusalMillis + "ms: " + refusal);
+            context.takeScreenshot("famulus-no-tool");
+            require(!refusal.isEmpty(),
+                    "Mining stone with no pickaxe should say which tool is needed, log was "
+                    + FamulusClient.agent().recentLog());
+            require(refusalMillis < 30_000,
+                    "A missing tool should be refused quickly, not left to the stall timeout; took "
+                    + refusalMillis + "ms");
+
+            world.getServer().runCommand("item replace entity @a hotbar.3 with minecraft:diamond_pickaxe 1");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
 
             command(context, "/famulus mine minecraft:stone minecraft:cobblestone 8");
             context.waitFor(client -> FamulusClient.agent() != null
@@ -223,8 +241,10 @@ public final class GatherClientGameTest implements FabricClientGameTest {
 
             world.getServer().runCommand("item replace entity @a hotbar.4 with minecraft:air");
             world.getServer().runCommand("item replace entity @a inventory.11 with minecraft:dirt 1");
+            world.getServer().runCommand("tp @a 60.5 -60 60.5 0 0");
             context.waitTick();
             world.getConnection().waitForClientboundPackets();
+            world.getConnection().waitForChunksRender();
 
             command(context, "/famulus place minecraft:dirt 59 -60 62");
             context.waitFor(client -> FamulusClient.agent() != null
@@ -304,6 +324,17 @@ public final class GatherClientGameTest implements FabricClientGameTest {
 
     private static int dirtCount(Minecraft client) {
         return client.player.getInventory().countItem(Items.DIRT);
+    }
+
+    private static String lastLogMentioning(String word) {
+        FamulusAgent agent = FamulusClient.agent();
+        if (agent == null) {
+            return "";
+        }
+        return agent.recentLog().stream()
+                .filter(line -> line.contains(word))
+                .reduce((first, second) -> second)
+                .orElse("");
     }
 
     private static boolean consulted() {

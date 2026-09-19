@@ -151,6 +151,7 @@ public final class PlannerService {
                 .append("\nFood: ").append(client.player.getFoodData().getFoodLevel()).append("/20")
                 .append("\nTime: ").append(timeOfDay(client))
                 .append("\nWeather: ").append(weather(client))
+                .append("\nTools: ").append(ToolCheck.describeTools(client))
                 .append("\nInventory: ").append(inventory(client))
                 .append("\nFree slots: ").append(freeSlots(client))
                 .append("\nNearby blocks: ").append(nearby(client, origin));

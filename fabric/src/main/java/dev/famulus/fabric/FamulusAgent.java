@@ -336,6 +336,14 @@ public final class FamulusAgent {
     private void runGather(Minecraft client, long nowMillis, String blockId, String itemId, int count) {
         WorldSnapshot snapshot = FamulusClient.OBSERVER.observe(client, itemId);
         if (!taskStarted) {
+            ToolCheck.Verdict tools = ToolCheck.assess(client, blockId);
+            if (!tools.usable()) {
+                taskStarted = true;
+                finishTask(new TaskResult(TaskStatus.RESOURCE_MISSING, tools.message(),
+                        snapshot.itemCount(), count, 0));
+                return;
+            }
+            ToolCheck.equipFor(client, blockId);
             taskStarted = true;
             note("running " + runner.current().describe());
             try {
