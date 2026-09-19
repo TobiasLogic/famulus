@@ -282,6 +282,23 @@ public final class GatherClientGameTest implements FabricClientGameTest {
             require(fromBackpack,
                     "A block held outside the hotbar should be brought to hand and placed");
 
+            world.getServer().runCommand("tp @a 60.5 -60 60.5 0 0");
+            world.getServer().runCommand("item replace entity @a hotbar.8 with minecraft:iron_sword 1");
+            world.getServer().runCommand("summon minecraft:cow 64.5 -60 60.5");
+            world.getServer().runCommand("summon minecraft:cow 65.5 -60 61.5");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            world.getConnection().waitForChunksRender();
+
+            command(context, "/famulus attack minecraft:cow 2");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 2400);
+            int cowsLeft = context.computeOnClient(GatherClientGameTest::cowCount);
+            String killedNote = lastLogMentioning("killed");
+            System.out.println("[FamulusAttack] cows left=" + cowsLeft + " | " + killedNote);
+            context.takeScreenshot("famulus-attack-done");
+            require(cowsLeft == 0, "Both cows should be dead, " + cowsLeft + " still alive");
+
             world.getServer().runCommand("item replace entity @a hotbar.7 with minecraft:bread 5");
             world.getServer().runCommand("effect give @a minecraft:hunger 30 255 true");
             context.waitFor(client -> client.player.getFoodData().getFoodLevel() <= 4, 900);
@@ -362,6 +379,14 @@ public final class GatherClientGameTest implements FabricClientGameTest {
 
     private static int rawIronCount(Minecraft client) {
         return client.player.getInventory().countItem(Items.RAW_IRON);
+    }
+
+    private static int cowCount(Minecraft client) {
+        var cow = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                .getValue(net.minecraft.resources.Identifier.parse("minecraft:cow"));
+        return client.level.getEntities(client.player,
+                client.player.getBoundingBox().inflate(40),
+                entity -> entity.getType() == cow && entity.isAlive()).size();
     }
 
     private static int ingotCount(Minecraft client) {

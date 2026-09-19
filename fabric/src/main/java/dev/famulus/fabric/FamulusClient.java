@@ -163,6 +163,13 @@ public final class FamulusClient implements ClientModInitializer {
                                                 .executes(context -> smelt(context.getSource(),
                                                         context.getArgument("item", Identifier.class),
                                                         IntegerArgumentType.getInteger(context, "count"))))))
+                        .then(literal("attack")
+                                .then(argument("entity", IdentifierArgument.id())
+                                        .then(argument("count", IntegerArgumentType.integer(1, 64))
+                                                .executes(context -> single(context.getSource(),
+                                                        new PlannedTask.Attack("a1",
+                                                                context.getArgument("entity", Identifier.class).toString(),
+                                                                IntegerArgumentType.getInteger(context, "count")))))))
                         .then(literal("eat")
                                 .executes(context -> single(context.getSource(),
                                         new PlannedTask.Eat("e1", 18))))

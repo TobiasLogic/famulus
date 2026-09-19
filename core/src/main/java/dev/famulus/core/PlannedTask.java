@@ -89,6 +89,24 @@ public sealed interface PlannedTask {
         }
     }
 
+    record Attack(String id, String target, int count) implements PlannedTask {
+        public Attack {
+            requireId(id);
+            requireItem(target);
+            requireCount(count, "Attack");
+        }
+
+        @Override
+        public AgentAction action() {
+            return AgentAction.ATTACK;
+        }
+
+        @Override
+        public String describe() {
+            return "attack " + count + " " + target;
+        }
+    }
+
     record PlaceBlock(String id, String itemId, int x, int y, int z) implements PlannedTask {
         public PlaceBlock {
             requireId(id);

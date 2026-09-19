@@ -138,6 +138,21 @@ public final class PlanParser {
                 }
                 yield new PlannedTask.Smelt(id, input, item, count);
             }
+            case "attack", "kill", "hunt" -> {
+                String target = string(task, "target");
+                if (target == null || target.isBlank()) {
+                    throw new PlannerException("Task " + (index + 1) + " is an attack with no target.");
+                }
+                target = target.trim().toLowerCase(java.util.Locale.ROOT);
+                if (!target.contains(":")) {
+                    target = "minecraft:" + target;
+                }
+                if (!PlannedTask.RESOURCE_ID.matcher(target).matches()) {
+                    throw new PlannerException("Task " + (index + 1)
+                            + " has an invalid entity id: " + target);
+                }
+                yield new PlannedTask.Attack(id, target, Math.max(1, integer(task, "count", 1)));
+            }
             case "eat", "feed" -> {
                 int level = integer(task, "food", 18);
                 yield new PlannedTask.Eat(id, Math.max(1, Math.min(20, level)));

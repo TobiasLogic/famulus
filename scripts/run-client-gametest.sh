@@ -61,8 +61,10 @@ require_line '[agent] missing a tool, crafting minecraft:wooden_pickaxe first' \
     'a missing pickaxe was crafted on the spot rather than ending the plan'
 require_pattern '\[eat\] EATING -> DONE \(food is 1[0-9]/20\)' \
     'it ate until nearly full rather than stopping after one item'
+require_pattern '\[attack\] STRIKING -> DONE \(killed 2 minecraft:cow\)' \
+    'it walked to and killed both cows'
 
-for shot in gather-running gather-completed inventory-32-oak-logs already-satisfied stopped plan-first-task plan-complete screen-agent screen-chat screen-build screen-settings deposit-done shulker-deposit craft-done mine-done place-done smelt-done hotbar-place-done no-tool tool-crafted eat-done interact-done; do
+for shot in gather-running gather-completed inventory-32-oak-logs already-satisfied stopped plan-first-task plan-complete screen-agent screen-chat screen-build screen-settings deposit-done shulker-deposit craft-done mine-done place-done smelt-done hotbar-place-done no-tool tool-crafted attack-done eat-done interact-done; do
     if compgen -G "$run_dir/screenshots/*${shot}.png" > /dev/null; then
         echo "  ok   screenshot ${shot}"
     else

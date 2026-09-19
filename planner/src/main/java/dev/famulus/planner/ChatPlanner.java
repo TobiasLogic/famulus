@@ -84,6 +84,10 @@ public final class ChatPlanner implements PlannerClient {
                  withdraw - take items out of the nearest container. "item", "count".
                  interact - right click the nearest block of a kind, for a lever, button,
                             door or bed. "target".
+                 attack   - kill entities by type. "target" is an entity id such as
+                            minecraft:cow, and "count" is how many. It walks to each one,
+                            so use it for hunting food or clearing a spawner, not for
+                            anything that will kill the agent back.
                  eat      - eat until full, from whatever food is carried. Optionally "food"
                             for the level to stop at, out of 20. The agent also eats on its
                             own when it drops to 6, so plan this only when you want it fed

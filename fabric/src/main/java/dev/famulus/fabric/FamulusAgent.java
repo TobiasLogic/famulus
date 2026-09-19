@@ -61,8 +61,10 @@ public final class FamulusAgent {
     private final MinecraftPlaceExecutor placeExecutor = new MinecraftPlaceExecutor();
     private final MinecraftInteractExecutor interactExecutor = new MinecraftInteractExecutor();
     private final MinecraftEatExecutor eatExecutor = new MinecraftEatExecutor();
+    private final MinecraftAttackExecutor attackExecutor = new MinecraftAttackExecutor();
     private final BuildController interacting;
     private final BuildController eating;
+    private final BuildController fighting;
     private final DepositController placing;
     private final DepositController crafting;
     private final DepositController smelting;
@@ -104,6 +106,7 @@ public final class FamulusAgent {
         this.placing = new DepositController(placeExecutor, gatherConfig);
         this.interacting = new BuildController(interactExecutor, gatherConfig);
         this.eating = new BuildController(eatExecutor, gatherConfig);
+        this.fighting = new BuildController(attackExecutor, gatherConfig);
         this.exploreTimeoutMillis = exploreTimeoutMillis;
         this.credentials = credentials;
         reloadPolicy();
@@ -194,6 +197,8 @@ public final class FamulusAgent {
             interactExecutor.tick(client);
         } else if (current instanceof PlannedTask.Eat) {
             eatExecutor.tick(client);
+        } else if (current instanceof PlannedTask.Attack) {
+            attackExecutor.tick(client);
         }
     }
 
@@ -296,6 +301,10 @@ public final class FamulusAgent {
             runEat(client, nowMillis, eatTask);
             return;
         }
+        if (task instanceof PlannedTask.Attack attackTask) {
+            runAttack(client, nowMillis, attackTask);
+            return;
+        }
         if (task instanceof PlannedTask.Mine mineTask) {
             runGather(client, nowMillis, mineTask.blockId(), mineTask.itemId(), mineTask.count());
             return;
@@ -358,6 +367,35 @@ public final class FamulusAgent {
         return new BuildSnapshot(true, client.player.isAlive() && !client.player.isRemoved(),
                 FamulusClient.OBSERVER.worldKey(client), remaining, eatTask.targetFood(),
                 MinecraftEatExecutor.hasFood(client));
+    }
+
+    private void runAttack(Minecraft client, long nowMillis, PlannedTask.Attack attackTask) {
+        if (!taskStarted) {
+            taskStarted = true;
+            note("running " + attackTask.describe());
+            try {
+                fighting.start(attackTask, observeAttack(client, attackTask), nowMillis);
+            } catch (RuntimeException failure) {
+                finishTask(new TaskResult(TaskStatus.FAILED,
+                        "Could not start: " + failure.getMessage(), 0, 0, 0));
+                return;
+            }
+        } else {
+            fighting.tick(observeAttack(client, attackTask), nowMillis);
+        }
+        if (!fighting.isRunning()) {
+            finishTask(fighting.result());
+        }
+    }
+
+    private BuildSnapshot observeAttack(Minecraft client, PlannedTask.Attack attackTask) {
+        if (client.level == null || client.player == null) {
+            return new BuildSnapshot(false, false, "disconnected", 0, 0, false);
+        }
+        int remaining = Math.max(0, attackTask.count() - attackExecutor.killed());
+        return new BuildSnapshot(true, client.player.isAlive() && !client.player.isRemoved(),
+                FamulusClient.OBSERVER.worldKey(client), remaining, attackTask.count(),
+                attackExecutor.step() != MinecraftAttackExecutor.Step.FAILED);
     }
 
     private BuildSnapshot observeInteract(Minecraft client) {
@@ -672,6 +710,7 @@ public final class FamulusAgent {
         placing.stop(reason);
         interacting.stop(reason);
         eating.stop(reason);
+        fighting.stop(reason);
         if (exploring) {
             explorer.cancel();
             exploring = false;
