@@ -324,7 +324,7 @@ public final class FamulusScreen extends Screen {
                         summary.setMessage(row(requirement.itemId() + " needs more than an inventory holds"));
                         return;
                     }
-                    tasks.add(new PlannedTask.Gather("t" + (++number),
+                    tasks.add(GatherCatalog.task("t" + (++number),
                             requirement.itemId(), requirement.needed()));
                 }
                 agent.start(new TaskPlan("collect materials for "

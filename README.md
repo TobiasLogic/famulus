@@ -23,7 +23,8 @@ Famulus is a Fabric client mod for **Minecraft Java 26.2**. It uses
 * Places a single block at a coordinate
 * Uses a block, such as flipping a lever or opening a door, and checks it actually changed
 * Turns plain language into a plan, so "get me wood and dirt for a shelter" becomes real tasks
-* Stops, reports and asks for a new plan when something is genuinely stuck, instead of looping
+* Asks the model for a fresh plan by itself when one gets genuinely stuck, then carries on with it,
+  twice at most before it stops and says so
 
 ## Requirements
 
@@ -142,9 +143,11 @@ script tells the difference between that and a real failure.
 
 Three layers, each doing only what it is good at.
 
-A **planner** turns your sentence into a structured list of tasks. It runs once at the start, never
-in a loop, and whatever it returns is validated before anything acts on it. A plan that names items
-the agent cannot obtain, or actions it cannot perform, is rejected rather than half attempted.
+A **planner** turns your sentence into a structured list of tasks. It sees where you are, what you
+are carrying, the time, the weather and what is worth noticing nearby, and whatever it returns is
+validated before anything acts on it. A plan that names items the agent cannot obtain, or actions it
+cannot perform, is rejected rather than half attempted. It runs again only when a plan gets stuck,
+and only a bounded number of times.
 
 A **policy** picks the next move when a task fails: retry, go and look elsewhere, accept it and move
 on, or give up and ask for a new plan. It answers in under a second and reports how confident it is,
@@ -159,8 +162,11 @@ including failure.
 
 Worth knowing before you expect too much:
 
-* The gather command covers logs, dirt, sand and red sand. For anything else use mine, which takes
-  the block and its drop explicitly and does not go through that list.
+* Gathering by item name covers 48 items: every log, the common dirts, sands and stones, and every
+  ore by its drop. For anything outside that, use mine, which takes the block and its drop
+  explicitly and does not go through that list.
+* Gathering an ore uses whichever blocks drop it, so asking for raw iron looks for both iron ore and
+  the deepslate variant.
 * Storing items works with a chest in reach, and with a shulker box when there is none. Both are
   tested in a live game.
 * Interacting means using a block, such as a lever, button or door, and it is confirmed by the block

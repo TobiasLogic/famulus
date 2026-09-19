@@ -23,6 +23,15 @@ if [[ ! -f "$log" ]]; then
 fi
 
 failures=0
+require_pattern() {
+    if grep -qE "$1" "$log"; then
+        echo "  ok   $2"
+    else
+        echo "  MISS $2"
+        failures=$((failures + 1))
+    fi
+}
+
 require_line() {
     if grep -qF "$1" "$log"; then
         echo "  ok   $2"
@@ -42,7 +51,7 @@ require_line 'CANCELLED | 32/96 | attempts 1 | Stopped by user' \
     '/famulus stop cancelled an in-progress task'
 require_line '[agent] plan started: queued gather (2 tasks)' \
     'a two-task plan started'
-require_line '[agent] running gather 8 minecraft:dirt' \
+require_pattern '\[agent\] running (gather|mine .* for) 8 minecraft:dirt' \
     'the agent advanced to its second task unprompted'
 require_line 'plan PLAN_COMPLETE' \
     'the plan ran to completion'

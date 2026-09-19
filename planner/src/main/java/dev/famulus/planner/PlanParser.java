@@ -17,6 +17,10 @@ public final class PlanParser {
 
     public static final int MAX_COUNT = 2304;
 
+    public static final int MAX_BLOCKS_PER_TASK = 8;
+
+    public static final int MAX_COORDINATE = 30_000_000;
+
     private PlanParser() {}
 
     public static TaskPlan parse(String raw, Set<String> gatherable) throws PlannerException {
@@ -49,7 +53,12 @@ public final class PlanParser {
             if (!array.get(i).isJsonObject()) {
                 throw new PlannerException("Task " + (i + 1) + " is not an object.");
             }
-            tasks.add(readTask(array.get(i).getAsJsonObject(), i, gatherable, rejected));
+            try {
+                tasks.add(readTask(array.get(i).getAsJsonObject(), i, gatherable, rejected));
+            } catch (IllegalArgumentException invalid) {
+                throw new PlannerException("Task " + (i + 1) + " is not valid: "
+                        + invalid.getMessage(), invalid);
+            }
         }
         if (!rejected.isEmpty()) {
             throw new PlannerException("The plan needs items this agent cannot obtain: "
@@ -80,16 +89,30 @@ public final class PlanParser {
         }
 
         return switch (type.trim().toLowerCase(java.util.Locale.ROOT)) {
-            case "gather", "mine", "collect" -> {
+            case "gather", "collect" -> {
                 String item = requireItem(task, index);
                 int count = requireCount(task, index);
                 if (!gatherable.contains(item)) {
                     rejected.add(item);
-
-                    yield new PlannedTask.Gather(id, item, count);
                 }
                 yield new PlannedTask.Gather(id, item, count);
             }
+            case "mine" -> {
+                String item = requireItem(task, index);
+                int count = requireCount(task, index);
+                String blocks = blockList(task, index);
+                if (blocks == null) {
+                    if (!gatherable.contains(item)) {
+                        rejected.add(item);
+                    }
+                    yield new PlannedTask.Gather(id, item, count);
+                }
+                yield new PlannedTask.Mine(id, blocks, item, count);
+            }
+            case "place", "place_block" -> new PlannedTask.PlaceBlock(id, requireItem(task, index),
+                    requireCoordinate(task, "x", index),
+                    requireCoordinate(task, "y", index),
+                    requireCoordinate(task, "z", index));
             case "deposit", "deposit_item", "store" ->
                     new PlannedTask.Deposit(id, requireItem(task, index), requireCount(task, index));
             case "withdraw", "withdraw_item", "take" ->
@@ -105,7 +128,8 @@ public final class PlanParser {
                         target.contains(":") ? target : "minecraft:" + target);
             }
             case "travel", "goto", "move" -> new PlannedTask.Travel(id,
-                    integer(task, "x", 0), integer(task, "y", 64), integer(task, "z", 0));
+                    requireCoordinate(task, "x", index), integer(task, "y", 64),
+                    requireCoordinate(task, "z", index));
             case "build" -> {
                 String blueprint = string(task, "blueprint");
                 if (blueprint == null || blueprint.isBlank()) {
@@ -117,6 +141,68 @@ public final class PlanParser {
             default -> throw new PlannerException("Task " + (index + 1)
                     + " has an unknown type: " + type);
         };
+    }
+
+    private static String blockList(JsonObject task, int index) throws PlannerException {
+        JsonElement value = task.get("block");
+        if (value == null) {
+            return null;
+        }
+        List<String> raw = new ArrayList<>();
+        if (value.isJsonArray()) {
+            for (JsonElement entry : value.getAsJsonArray()) {
+                if (entry.isJsonPrimitive()) {
+                    raw.add(entry.getAsString());
+                }
+            }
+        } else if (value.isJsonPrimitive()) {
+            for (String part : value.getAsString().split(",")) {
+                raw.add(part);
+            }
+        }
+        List<String> blocks = new ArrayList<>();
+        for (String entry : raw) {
+            String block = entry.trim().toLowerCase(java.util.Locale.ROOT);
+            if (block.isEmpty()) {
+                continue;
+            }
+            if (!block.contains(":")) {
+                block = "minecraft:" + block;
+            }
+            if (!PlannedTask.RESOURCE_ID.matcher(block).matches()) {
+                throw new PlannerException("Task " + (index + 1) + " names an invalid block: " + block);
+            }
+            if (!blocks.contains(block)) {
+                blocks.add(block);
+            }
+        }
+        if (blocks.isEmpty()) {
+            return null;
+        }
+        if (blocks.size() > MAX_BLOCKS_PER_TASK) {
+            throw new PlannerException("Task " + (index + 1) + " names " + blocks.size()
+                    + " blocks, more than the " + MAX_BLOCKS_PER_TASK + " allowed.");
+        }
+        return String.join(",", blocks);
+    }
+
+    private static int requireCoordinate(JsonObject task, String field, int index)
+            throws PlannerException {
+        JsonElement value = task.get(field);
+        if (value == null || !value.isJsonPrimitive()) {
+            throw new PlannerException("Task " + (index + 1) + " needs a \"" + field
+                    + "\" coordinate.");
+        }
+        int coordinate = integer(task, field, Integer.MIN_VALUE);
+        if (coordinate == Integer.MIN_VALUE) {
+            throw new PlannerException("Task " + (index + 1) + " has an unreadable \"" + field
+                    + "\" coordinate.");
+        }
+        if (Math.abs(coordinate) > MAX_COORDINATE) {
+            throw new PlannerException("Task " + (index + 1) + " points at " + field + "="
+                    + coordinate + ", outside the world border.");
+        }
+        return coordinate;
     }
 
     private static String requireItem(JsonObject task, int index) throws PlannerException {
@@ -181,8 +267,13 @@ public final class PlanParser {
             return fallback;
         }
         try {
-            return (int) Math.round(value.getAsDouble());
-        } catch (NumberFormatException notANumber) {
+            double number = value.getAsDouble();
+            if (!Double.isFinite(number)) {
+                return fallback;
+            }
+            return (int) Math.max(Integer.MIN_VALUE + 1L,
+                    Math.min(Integer.MAX_VALUE, Math.round(number)));
+        } catch (RuntimeException notANumber) {
             return fallback;
         }
     }

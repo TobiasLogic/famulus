@@ -159,4 +159,42 @@ class ChatPlannerTest {
         assertFalse(PlannerConfig.local(PlannerConfig.OLLAMA, "llama3").hasKey());
         assertTrue(PlannerConfig.suggestedModels().contains(PlannerConfig.DEFAULT_MODEL));
     }
+
+    @Test
+    void theSystemPromptDocumentsEveryTaskTypeTheParserAccepts() throws Exception {
+        response = reply("{\"goal\":\"g\",\"tasks\":[{\"type\":\"gather\",\"item\":\"minecraft:dirt\",\"count\":1}]}");
+        planner("k").plan(request());
+        String system = JsonParser.parseString(lastBody.get()).getAsJsonObject()
+                .getAsJsonArray("messages").get(0).getAsJsonObject()
+                .get("content").getAsString();
+        for (String type : new String[] {"gather", "mine", "craft", "place", "build",
+                "travel", "deposit", "withdraw", "interact"}) {
+            assertTrue(system.contains(type),
+                    "The model is never told the \"" + type + "\" task type exists");
+        }
+    }
+
+    @Test
+    void aPlanUsingEveryTaskTypeSurvivesTheRoundTrip() throws Exception {
+        response = reply("""
+                {"goal":"set up camp","tasks":[
+                  {"id":"t1","type":"travel","x":120,"y":68,"z":-40},
+                  {"id":"t2","type":"gather","item":"minecraft:oak_log","count":16},
+                  {"id":"t3","type":"mine","block":"minecraft:iron_ore","item":"minecraft:raw_iron","count":6},
+                  {"id":"t4","type":"craft","item":"minecraft:crafting_table","count":1},
+                  {"id":"t5","type":"place","item":"minecraft:crafting_table","x":120,"y":68,"z":-39},
+                  {"id":"t6","type":"withdraw","item":"minecraft:dirt","count":8},
+                  {"id":"t7","type":"deposit","item":"minecraft:oak_log","count":4},
+                  {"id":"t8","type":"interact","target":"minecraft:lever"},
+                  {"id":"t9","type":"build","blueprint":"hut.schem","x":120,"y":68,"z":-35}]}
+                """);
+        TaskPlan plan = planner("k").plan(request());
+        assertEquals(9, plan.tasks().size());
+        assertTrue(plan.isExecutable(), "Every task in the round trip needs an executor");
+        assertEquals("travel to 120,68,-40", plan.tasks().get(0).describe());
+        assertEquals("mine minecraft:iron_ore for 6 minecraft:raw_iron",
+                plan.tasks().get(2).describe());
+        assertEquals("place minecraft:crafting_table at 120,68,-39",
+                plan.tasks().get(4).describe());
+    }
 }

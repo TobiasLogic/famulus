@@ -35,7 +35,7 @@ public final class BaritoneGatherExecutor implements GatherExecutor {
         if (isBusy()) throw new IllegalStateException("Baritone is busy; stop its current task before gathering.");
 
         ownsMining = true;
-        baritone().getMineProcess().mineByName(task.targetCount(), task.blockId());
+        baritone().getMineProcess().mineByName(task.targetCount(), task.blockId().split(","));
     }
 
     @Override

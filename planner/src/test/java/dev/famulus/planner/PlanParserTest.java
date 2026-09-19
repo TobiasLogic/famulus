@@ -195,4 +195,100 @@ class PlanParserTest {
                 """.formatted("wood ".repeat(100)));
         assertTrue(plan.goal().length() <= 200);
     }
+
+    @Test
+    void aMineWithAnExplicitBlockKeepsTheBlockAndTheDropApart() throws Exception {
+        TaskPlan plan = parse("""
+                {"goal":"iron","tasks":[{"type":"mine","block":"minecraft:iron_ore",
+                 "item":"minecraft:raw_iron","count":8}]}
+                """);
+        PlannedTask.Mine mine = assertInstanceOf(PlannedTask.Mine.class, plan.tasks().get(0));
+        assertEquals("minecraft:iron_ore", mine.blockId());
+        assertEquals("minecraft:raw_iron", mine.itemId());
+        assertEquals(8, mine.count());
+    }
+
+    @Test
+    void anExplicitBlockLetsThePlannerAskForSomethingOutsideTheCatalogue() throws Exception {
+        TaskPlan plan = parse("""
+                {"goal":"diamonds","tasks":[{"type":"mine","block":"minecraft:diamond_ore",
+                 "item":"minecraft:diamond","count":3}]}
+                """);
+        assertInstanceOf(PlannedTask.Mine.class, plan.tasks().get(0));
+    }
+
+    @Test
+    void aMineWithoutABlockIsStillHeldToTheCatalogue() {
+        assertTrue(refuse("""
+                {"goal":"diamonds","tasks":[{"type":"mine","item":"minecraft:diamond","count":3}]}
+                """).getMessage().contains("minecraft:diamond"));
+    }
+
+    @Test
+    void severalBlocksMayFeedOneMine() throws Exception {
+        TaskPlan plan = parse("""
+                {"goal":"iron","tasks":[{"type":"mine",
+                 "block":["minecraft:iron_ore","deepslate_iron_ore","minecraft:iron_ore"],
+                 "item":"minecraft:raw_iron","count":8}]}
+                """);
+        PlannedTask.Mine mine = assertInstanceOf(PlannedTask.Mine.class, plan.tasks().get(0));
+        assertEquals("minecraft:iron_ore,minecraft:deepslate_iron_ore", mine.blockId(),
+                "Names should be namespaced and repeats dropped");
+    }
+
+    @Test
+    void aBlockListHasACeiling() {
+        StringBuilder blocks = new StringBuilder();
+        for (int i = 0; i <= PlanParser.MAX_BLOCKS_PER_TASK; i++) {
+            blocks.append(i == 0 ? "" : ",").append("\"minecraft:stone").append(i).append("\"");
+        }
+        assertTrue(refuse("""
+                {"goal":"g","tasks":[{"type":"mine","block":[%s],
+                 "item":"minecraft:dirt","count":1}]}
+                """.formatted(blocks)).getMessage().contains("more than"));
+    }
+
+    @Test
+    void acceptsAPlacementNowThatItHasAnExecutor() throws Exception {
+        TaskPlan plan = parse("""
+                {"goal":"bridge","tasks":[{"type":"place","item":"minecraft:dirt",
+                 "x":10,"y":64,"z":-4}]}
+                """);
+        PlannedTask.PlaceBlock place = assertInstanceOf(PlannedTask.PlaceBlock.class, plan.tasks().get(0));
+        assertEquals("minecraft:dirt", place.itemId());
+        assertEquals(10, place.x());
+        assertEquals(64, place.y());
+        assertEquals(-4, place.z());
+    }
+
+    @Test
+    void aPlacementWithNoCoordinatesIsRefusedRatherThanAimedAtTheOrigin() {
+        assertTrue(refuse("""
+                {"goal":"g","tasks":[{"type":"place","item":"minecraft:dirt","x":1,"z":2}]}
+                """).getMessage().contains("\"y\""));
+    }
+
+    @Test
+    void aTravelWithNoCoordinatesIsRefusedRatherThanAimedAtTheOrigin() {
+        assertTrue(refuse("""
+                {"goal":"g","tasks":[{"type":"travel","y":70}]}
+                """).getMessage().contains("\"x\""));
+    }
+
+    @Test
+    void aPlacementOutsideAnyWorldHeightIsRefusedCleanly() {
+        PlannerException refused = refuse("""
+                {"goal":"g","tasks":[{"type":"place","item":"minecraft:dirt",
+                 "x":1,"y":9000,"z":2}]}
+                """);
+        assertTrue(refused.getMessage().contains("Task 1"),
+                "A bad record should surface as a refusal, not an unexpected failure");
+    }
+
+    @Test
+    void aCoordinateBeyondTheWorldBorderIsRefused() {
+        assertTrue(refuse("""
+                {"goal":"g","tasks":[{"type":"travel","x":99000000,"z":0}]}
+                """).getMessage().contains("world border"));
+    }
 }

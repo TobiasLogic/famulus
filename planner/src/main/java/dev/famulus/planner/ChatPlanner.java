@@ -61,19 +61,40 @@ public final class ChatPlanner implements PlannerClient {
                {"goal": "short description",
                 "tasks": [{"id": "t1", "type": "gather", "item": "minecraft:oak_log", "count": 32}]}
 
-               Task types:
-                 gather  - obtain an item. Needs "item" and "count".
-                 deposit - put items in a container. Needs "item" and "count".
-                 build   - place a saved blueprint. Needs "blueprint", optionally "x", "y", "z".
+               Task types, with the fields each one needs:
+                 gather   - obtain an item by breaking whatever normally drops it.
+                            "item", "count".
+                 mine     - break named blocks for their drop. "item", "count", and "block",
+                            which is one block id or a list of them. Use this only for items
+                            outside the list below, and only when you know which block drops
+                            the item; a wrong pairing just wastes the attempt.
+                 craft    - craft an item using the recipe book. "item", "count". The agent
+                            opens a crafting table if one is within reach, otherwise it uses
+                            the 2x2 grid, so plan a table first for anything larger.
+                 place    - put one held block into the world. "item", "x", "y", "z".
+                 build    - place a saved blueprint. "blueprint", optionally "x", "y", "z".
+                 travel   - walk somewhere. "x", "z", optionally "y".
+                 deposit  - move items from the inventory into the nearest container.
+                            "item", "count".
+                 withdraw - take items out of the nearest container. "item", "count".
+                 interact - right click the nearest block of a kind, for a lever, button,
+                            door or bed. "target".
 
                Rules:
-                 - "count" is the TOTAL the player should end up holding, not how many to collect.
+                 - "count" is the TOTAL the player should end up holding, not how many to
+                   collect. A gather of 32 when 20 are already held collects 12.
                  - Maximum %d tasks, and no count above %d.
-                 - Only these items can be gathered, and a plan naming anything else is rejected:
+                 - Coordinates are absolute world positions, not offsets. Only give ones you
+                   can justify from the state below.
+                 - deposit and withdraw need a container the agent can already reach. Add a
+                   travel task first if the state below does not mention one nearby.
+                 - These items can be gathered by name, and a gather naming anything else is
+                   rejected outright:
                    %s
-                 - If the goal cannot be met with those items, still reply with JSON, using a goal
-                   that says what is missing and an empty-but-valid single gather task is NOT
-                   acceptable. Prefer to explain by choosing fewer tasks.
+                 - Order matters. Materials before the craft that consumes them, the crafting
+                   table before the craft, the travel before the deposit.
+                 - Prefer few tasks. If the goal cannot be met, say so in "goal" and give the
+                   tasks that get closest rather than inventing ones that will fail.
                  - No prose, no markdown fences, no comments. JSON only.
 
                Current state:

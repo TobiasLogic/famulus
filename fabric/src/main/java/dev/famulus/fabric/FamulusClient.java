@@ -16,6 +16,7 @@ import dev.famulus.core.TaskStatus;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -65,6 +66,17 @@ public final class FamulusClient implements ClientModInitializer {
             agent = new FamulusAgent(config.gather(), PolicyGateConfig.defaults(), credentials,
                     config.exploreTimeoutMillis());
             planner = new PlannerService(credentials, config.plannerEndpoint(), config.plannerModel());
+            agent.setReplanner(new FamulusAgent.Replanner() {
+                @Override
+                public boolean request(String goal, String situation, Minecraft client) {
+                    return planner.requestReplan(goal, situation, client);
+                }
+
+                @Override
+                public Optional<TaskPlan> take() {
+                    return planner.takeReplan();
+                }
+            });
         } catch (Exception e) {
             configurationError = "Fix config/famulus.properties and restart: " + e.getMessage();
             LOGGER.error("Famulus configuration is invalid. {}", configurationError, e);
@@ -196,11 +208,13 @@ public final class FamulusClient implements ClientModInitializer {
         }
         if (!BuiltInRegistries.ITEM.containsKey(item)) return error(source, "Unknown item: " + item);
         if (!GatherCatalog.supports(item.toString())) {
-            return error(source, "Unsupported gather item. Prototype supports logs, dirt, sand and red sand. Use tab completion.");
+            return error(source, "No block in the catalog drops " + item
+                    + ". Use tab completion for the supported items.");
         }
         try {
             if (executor.isBusy()) return error(source, "Baritone is already busy. Stop its current operation first.");
-            GatherTask task = new GatherTask(UUID.randomUUID().toString(), item.toString(), item.toString(), count);
+            GatherTask task = new GatherTask(UUID.randomUUID().toString(), item.toString(),
+                    GatherCatalog.blocksFor(item.toString()), count);
             controller.start(task, OBSERVER.observe(client, task.itemId()), now());
             lastStatus = controller.result().status();
             report(source, controller.result());
@@ -221,7 +235,8 @@ public final class FamulusClient implements ClientModInitializer {
         if (agent != null && agent.isRunning()) {
             agent.tickEveryFrame(client);
         }
-        if (agent != null && agent.isRunning() && ++agentTicks % config.observationIntervalTicks() == 0) {
+        if (agent != null && (agent.isRunning() || agent.needsReplan())
+                && ++agentTicks % config.observationIntervalTicks() == 0) {
             try {
                 agent.tick(client, now());
             } catch (RuntimeException e) {
@@ -331,7 +346,7 @@ public final class FamulusClient implements ClientModInitializer {
             if (count < 1 || count > 2304) {
                 return error(source, "Count must be between 1 and 2304, got " + count);
             }
-            tasks.add(new PlannedTask.Gather("t" + (++number), itemId, count));
+            tasks.add(GatherCatalog.task("t" + (++number), itemId, count));
         }
         if (tasks.isEmpty()) return error(source, "Nothing to gather.");
         try {
@@ -412,8 +427,8 @@ public final class FamulusClient implements ClientModInitializer {
         List<MaterialRequirement> blocked = list.unobtainable(GatherCatalog::supports);
         if (!blocked.isEmpty()) {
             return error(source, "No gather path for " + blocked.stream()
-                    .map(MaterialRequirement::itemId).toList()
-                    + ". Only logs, dirt, sand and red sand are supported so far.");
+                    .map(MaterialRequirement::itemId).toList() + ". Supported: "
+                    + GatherCatalog.items());
         }
         List<PlannedTask> tasks = new ArrayList<>();
         int number = 0;
@@ -422,7 +437,7 @@ public final class FamulusClient implements ClientModInitializer {
                 return error(source, requirement.itemId() + " needs " + requirement.needed()
                         + ", more than an inventory holds. Chest storage does not exist yet.");
             }
-            tasks.add(new PlannedTask.Gather("t" + (++number), requirement.itemId(), requirement.needed()));
+            tasks.add(GatherCatalog.task("t" + (++number), requirement.itemId(), requirement.needed()));
         }
         try {
             TaskPlan plan = new TaskPlan("collect materials for " + summary.name(), tasks);

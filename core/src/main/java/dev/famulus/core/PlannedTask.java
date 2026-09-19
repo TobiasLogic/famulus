@@ -6,6 +6,8 @@ import java.util.regex.Pattern;
 public sealed interface PlannedTask {
     Pattern RESOURCE_ID = Pattern.compile("[a-z0-9_.-]+:[a-z0-9/._-]+");
 
+    Pattern RESOURCE_LIST = Pattern.compile("[a-z0-9_.-]+:[a-z0-9/._-]+(,[a-z0-9_.-]+:[a-z0-9/._-]+)*");
+
     String id();
 
     AgentAction action();
@@ -33,7 +35,7 @@ public sealed interface PlannedTask {
     record Mine(String id, String blockId, String itemId, int count) implements PlannedTask {
         public Mine {
             requireId(id);
-            requireItem(blockId);
+            requireBlocks(blockId);
             requireItem(itemId);
             requireCount(count, "Mine");
         }
@@ -183,6 +185,13 @@ public sealed interface PlannedTask {
         Objects.requireNonNull(id, "id");
         if (id.isBlank()) {
             throw new IllegalArgumentException("Task id must not be blank");
+        }
+    }
+
+    private static void requireBlocks(String blockId) {
+        Objects.requireNonNull(blockId, "blockId");
+        if (!RESOURCE_LIST.matcher(blockId).matches()) {
+            throw new IllegalArgumentException("Blocks must be namespaced identifiers: " + blockId);
         }
     }
 

@@ -32,11 +32,14 @@ class PlannerLiveSmokeTest {
         assertFalse(plan.tasks().isEmpty());
         assertTrue(plan.isExecutable(), "Every task must have an executor");
         for (PlannedTask task : plan.tasks()) {
-            PlannedTask.Gather gather = assertInstanceOf(PlannedTask.Gather.class, task);
-            assertTrue(GATHERABLE.contains(gather.itemId()),
-                    "The parser must never let an unobtainable item through: " + gather.itemId());
-            assertTrue(gather.count() >= 1 && gather.count() <= PlanParser.MAX_COUNT);
+            if (task instanceof PlannedTask.Gather gather) {
+                assertTrue(GATHERABLE.contains(gather.itemId()),
+                        "The parser must never let an unobtainable item through: " + gather.itemId());
+                assertTrue(gather.count() >= 1 && gather.count() <= PlanParser.MAX_COUNT);
+            }
         }
+        assertTrue(plan.tasks().stream().anyMatch(task -> task instanceof PlannedTask.Gather),
+                "A shelter needs materials, so the plan should gather something");
         System.out.println("live plan: " + plan.goal());
         plan.tasks().forEach(task -> System.out.println("  " + task.describe()));
     }
@@ -52,6 +55,10 @@ class PlannerLiveSmokeTest {
                 if (task instanceof PlannedTask.Gather gather) {
                     assertTrue(GATHERABLE.contains(gather.itemId()),
                             "Accepted an unobtainable item: " + gather.itemId());
+                }
+                if (task instanceof PlannedTask.Mine mine) {
+                    assertFalse(mine.blockId().isBlank(),
+                            "A mine outside the catalogue must say which block to break");
                 }
             }
             System.out.println("live refusal: model answered within its limits, goal=" + plan.goal());

@@ -28,6 +28,7 @@ import dev.famulus.jev.JevConfig;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,6 +37,15 @@ import net.minecraft.client.Minecraft;
 
 public final class FamulusAgent {
     private static final int POLICY_TIMEOUT_TICKS = 300;
+    private static final int REPLAN_TIMEOUT_TICKS = 600;
+    private static final int MAX_REPLANS = 2;
+    private static final int MAX_REPLAN_REQUESTS = 20;
+
+    public interface Replanner {
+        boolean request(String goal, String situation, Minecraft client);
+
+        Optional<TaskPlan> take();
+    }
 
     private final GatherController gather;
     private final BuildController builder;
@@ -70,6 +80,12 @@ public final class FamulusAgent {
     private int policyWaitTicks;
     private boolean exploring;
     private long exploreStartedAt;
+    private Replanner replanner;
+    private int replansUsed;
+    private int replanRequests;
+    private int replanWaitTicks;
+    private boolean replanRequested;
+    private boolean replanExhausted;
 
     public FamulusAgent(GatherConfig gatherConfig, PolicyGateConfig policyConfig,
                         CredentialStore credentials, long exploreTimeoutMillis) {
@@ -121,18 +137,34 @@ public final class FamulusAgent {
         return runner != null && !runner.step().isTerminal() && runner.step() != PlanStep.NOT_STARTED;
     }
 
+    public void setReplanner(Replanner replanner) {
+        this.replanner = replanner;
+    }
+
+    public boolean needsReplan() {
+        return !replanExhausted && runner != null && runner.step() == PlanStep.REPLAN_REQUIRED;
+    }
+
     public void start(TaskPlan plan) {
         if (isRunning()) {
             throw new IllegalStateException("A plan is already running. Use /famulus stop first.");
         }
+        replansUsed = 0;
+        replanRequests = 0;
+        replanExhausted = false;
+        log.clear();
+        begin(plan);
+    }
+
+    private void begin(TaskPlan plan) {
         runner = new PlanRunner(plan, 3);
         taskStarted = false;
         exploring = false;
         policyDispatched = false;
+        replanRequested = false;
         policyGeneration++;
         pendingDecision.set(null);
         gate.reset();
-        log.clear();
         note("plan started: " + plan.goal() + " (" + plan.tasks().size() + " tasks)");
         runner.start();
     }
@@ -154,15 +186,65 @@ public final class FamulusAgent {
     }
 
     public void tick(Minecraft client, long nowMillis) {
-        if (!isRunning()) {
+        if (runner == null) {
             return;
         }
         switch (runner.step()) {
             case RUN_CURRENT -> runCurrent(client, nowMillis);
             case CONSULT_POLICY -> consultPolicy(client, nowMillis);
             case EXPLORE -> explore(client, nowMillis);
+            case REPLAN_REQUIRED -> replan(client);
             default -> { }
         }
+    }
+
+    private void replan(Minecraft client) {
+        if (replanExhausted) {
+            return;
+        }
+        if (replanner == null) {
+            abandonReplan("no planner is wired up");
+            return;
+        }
+        if (replansUsed >= MAX_REPLANS) {
+            abandonReplan("already replanned " + replansUsed + " times");
+            return;
+        }
+        Optional<TaskPlan> fresh = replanner.take();
+        if (fresh.isPresent()) {
+            TaskPlan plan = fresh.get();
+            try {
+                begin(plan);
+            } catch (RuntimeException refused) {
+                abandonReplan("the new plan was refused: " + refused.getMessage());
+                return;
+            }
+            replansUsed++;
+            note("replan " + replansUsed + " of " + MAX_REPLANS + ": " + plan.tasks().size()
+                    + " tasks for " + plan.goal());
+            return;
+        }
+        if (!replanRequested) {
+            if (++replanRequests > MAX_REPLAN_REQUESTS) {
+                abandonReplan("the planner stayed unavailable");
+                return;
+            }
+            if (replanner.request(runner.plan().goal(), situation(client), client)) {
+                replanRequested = true;
+                replanWaitTicks = 0;
+                note("asking the planner for a new plan");
+            }
+            return;
+        }
+        if (++replanWaitTicks > REPLAN_TIMEOUT_TICKS) {
+            abandonReplan("the planner did not answer in time");
+        }
+    }
+
+    private void abandonReplan(String why) {
+        replanExhausted = true;
+        replanRequested = false;
+        note("giving up on replanning: " + why);
     }
 
     private void runCurrent(Minecraft client, long nowMillis) {
@@ -196,7 +278,10 @@ public final class FamulusAgent {
             return;
         }
         if (task instanceof PlannedTask.Gather gatherTask) {
-            runGather(client, nowMillis, gatherTask.itemId(), gatherTask.itemId(), gatherTask.count());
+            String blocks = GatherCatalog.supports(gatherTask.itemId())
+                    ? GatherCatalog.blocksFor(gatherTask.itemId())
+                    : gatherTask.itemId();
+            runGather(client, nowMillis, blocks, gatherTask.itemId(), gatherTask.count());
             return;
         }
         finishTask(new TaskResult(TaskStatus.INVALID_TARGET,
@@ -431,6 +516,17 @@ public final class FamulusAgent {
         }
     }
 
+    public String situation(Minecraft client) {
+        if (runner == null || runner.current() == null) {
+            return "No plan is running.";
+        }
+        List<String> recent = recentLog();
+        return describeSituation(client)
+                + "Why it stopped: " + runner.reason() + "\n"
+                + "Recent events:\n"
+                + String.join("\n", recent.subList(Math.max(0, recent.size() - 10), recent.size()));
+    }
+
     private String describeSituation(Minecraft client) {
         TaskResult last = gather.result();
         StringBuilder text = new StringBuilder(256);
@@ -471,6 +567,8 @@ public final class FamulusAgent {
             runner.onTaskResult(new TaskResult(TaskStatus.CANCELLED, reason, 0, 0, 0));
             note("stopped: " + reason);
         }
+        replanExhausted = true;
+        replanRequested = false;
         pendingDecision.set(null);
         policyDispatched = false;
     }
