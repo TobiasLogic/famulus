@@ -45,6 +45,8 @@ public final class FamulusAgent {
     private final DepositController transfers;
     private final MinecraftContainerExecutor containerExecutor = new MinecraftContainerExecutor();
     private final MinecraftCraftExecutor craftExecutor = new MinecraftCraftExecutor();
+    private final MinecraftPlaceExecutor placeExecutor = new MinecraftPlaceExecutor();
+    private final DepositController placing;
     private final DepositController crafting;
     private final BaritoneExplorer explorer = new BaritoneExplorer();
     private final long exploreTimeoutMillis;
@@ -74,6 +76,7 @@ public final class FamulusAgent {
         this.traveller = new TravelController(travelExecutor, gatherConfig);
         this.transfers = new DepositController(containerExecutor, gatherConfig);
         this.crafting = new DepositController(craftExecutor, gatherConfig);
+        this.placing = new DepositController(placeExecutor, gatherConfig);
         this.exploreTimeoutMillis = exploreTimeoutMillis;
         this.credentials = credentials;
         reloadPolicy();
@@ -140,6 +143,8 @@ public final class FamulusAgent {
             containerExecutor.tick(client);
         } else if (current instanceof PlannedTask.Craft) {
             craftExecutor.tick(client);
+        } else if (current instanceof PlannedTask.PlaceBlock) {
+            placeExecutor.tick(client);
         }
     }
 
@@ -173,22 +178,33 @@ public final class FamulusAgent {
             runTransfer(client, nowMillis, task, crafting);
             return;
         }
-        if (!(task instanceof PlannedTask.Gather gatherTask)) {
-            finishTask(new TaskResult(TaskStatus.INVALID_TARGET,
-                    "No executor for " + task.describe(), 0, 0, 0));
+        if (task instanceof PlannedTask.PlaceBlock) {
+            runTransfer(client, nowMillis, task, placing);
             return;
         }
-        WorldSnapshot snapshot = FamulusClient.OBSERVER.observe(client, gatherTask.itemId());
+        if (task instanceof PlannedTask.Mine mineTask) {
+            runGather(client, nowMillis, mineTask.blockId(), mineTask.itemId(), mineTask.count());
+            return;
+        }
+        if (task instanceof PlannedTask.Gather gatherTask) {
+            runGather(client, nowMillis, gatherTask.itemId(), gatherTask.itemId(), gatherTask.count());
+            return;
+        }
+        finishTask(new TaskResult(TaskStatus.INVALID_TARGET,
+                "No executor for " + task.describe(), 0, 0, 0));
+    }
+
+    private void runGather(Minecraft client, long nowMillis, String blockId, String itemId, int count) {
+        WorldSnapshot snapshot = FamulusClient.OBSERVER.observe(client, itemId);
         if (!taskStarted) {
             taskStarted = true;
-            note("running " + task.describe());
+            note("running " + runner.current().describe());
             try {
-                gather.start(new GatherTask(UUID.randomUUID().toString(),
-                        gatherTask.itemId(), gatherTask.itemId(), gatherTask.count()),
+                gather.start(new GatherTask(UUID.randomUUID().toString(), itemId, blockId, count),
                         snapshot, nowMillis);
             } catch (RuntimeException failure) {
                 finishTask(new TaskResult(TaskStatus.FAILED,
-                        "Could not start: " + failure.getMessage(), 0, gatherTask.count(), 0));
+                        "Could not start: " + failure.getMessage(), 0, count, 0));
                 return;
             }
         } else {
@@ -306,8 +322,10 @@ public final class FamulusAgent {
             itemId = deposit.itemId();
         } else if (transferTask instanceof PlannedTask.Withdraw withdraw) {
             itemId = withdraw.itemId();
+        } else if (transferTask instanceof PlannedTask.Craft craft) {
+            itemId = craft.itemId();
         } else {
-            itemId = ((PlannedTask.Craft) transferTask).itemId();
+            itemId = ((PlannedTask.PlaceBlock) transferTask).itemId();
         }
         if (client.level == null || client.player == null) {
             return new DepositSnapshot(false, false, "disconnected", 0, false);
@@ -398,6 +416,7 @@ public final class FamulusAgent {
         traveller.stop(reason);
         transfers.stop(reason);
         crafting.stop(reason);
+        placing.stop(reason);
         if (exploring) {
             explorer.cancel();
             exploring = false;

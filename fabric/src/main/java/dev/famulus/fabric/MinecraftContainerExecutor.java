@@ -1,5 +1,7 @@
 package dev.famulus.fabric;
 
+import baritone.api.BaritoneAPI;
+import baritone.api.pathing.goals.GoalBlock;
 import dev.famulus.core.ContainerExecutor;
 import dev.famulus.core.PlannedTask;
 import java.util.ArrayList;
@@ -38,6 +40,7 @@ public final class MinecraftContainerExecutor implements ContainerExecutor {
     private boolean placedShulker;
     private int ticksInStep;
     private int ticksSinceBroken;
+    private boolean walkingToDrop;
 
     @Override
     public void start(PlannedTask task) {
@@ -56,6 +59,7 @@ public final class MinecraftContainerExecutor implements ContainerExecutor {
         placedShulker = false;
         ticksInStep = 0;
         ticksSinceBroken = 0;
+        walkingToDrop = false;
         step = Step.LOCATING;
         note = "looking for a container";
     }
@@ -76,6 +80,7 @@ public final class MinecraftContainerExecutor implements ContainerExecutor {
         if (client.player != null && client.player.containerMenu != client.player.inventoryMenu) {
             client.player.closeContainer();
         }
+        stopWalking();
         step = Step.IDLE;
         note = "cancelled";
     }
@@ -278,11 +283,41 @@ public final class MinecraftContainerExecutor implements ContainerExecutor {
             return;
         }
         client.gameMode.stopDestroyBlock();
-        if (ticksSinceBroken < 60) {
-            ticksSinceBroken++;
+        if (holdsShulker(client)) {
+            stopWalking();
+            advance(Step.DONE, "shulker box collected");
             return;
         }
-        advance(Step.DONE, "done");
+        if (!walkingToDrop) {
+            walkingToDrop = true;
+            BaritoneAPI.getProvider().getPrimaryBaritone().getCustomGoalProcess()
+                    .setGoalAndPath(new GoalBlock(container.getX(), container.getY(), container.getZ()));
+        }
+        if (ticksInStep > RECLAIM_TIMEOUT_TICKS - 20) {
+            stopWalking();
+            fail("the shulker box is on the ground at " + container.toShortString()
+                    + " with the items inside");
+        }
+    }
+
+    private void stopWalking() {
+        if (!walkingToDrop) {
+            return;
+        }
+        walkingToDrop = false;
+        var baritone = BaritoneAPI.getProvider().getPrimaryBaritone();
+        baritone.getCustomGoalProcess().onLostControl();
+        baritone.getPathingBehavior().cancelEverything();
+    }
+
+    private boolean holdsShulker(Minecraft client) {
+        for (ItemStack stack : client.player.getInventory().getNonEquipmentItems()) {
+            if (!stack.isEmpty() && net.minecraft.world.level.block.Block.byItem(stack.getItem())
+                    instanceof ShulkerBoxBlock) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Direction faceToward(Minecraft client) {

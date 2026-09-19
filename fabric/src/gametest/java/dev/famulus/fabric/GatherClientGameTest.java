@@ -173,6 +173,32 @@ public final class GatherClientGameTest implements FabricClientGameTest {
                     "Crafting 16 planks should have produced at least 16, went from "
                     + planksBefore + " to " + planksAfter);
 
+            world.getServer().runCommand("tp @a 60.5 -60 60.5 0 0");
+            world.getServer().runCommand("fill 62 -60 60 66 -60 64 minecraft:stone");
+            world.getServer().runCommand("item replace entity @a hotbar.3 with minecraft:diamond_pickaxe 1");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            world.getConnection().waitForChunksRender();
+            context.waitFor(client -> cobbleCount(client) == 0, 200);
+
+            command(context, "/famulus mine minecraft:stone minecraft:cobblestone 8");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 3600);
+            int cobble = context.computeOnClient(GatherClientGameTest::cobbleCount);
+            System.out.println("[FamulusMine] cobblestone=" + cobble);
+            context.takeScreenshot("famulus-mine-done");
+            require(cobble >= 8, "Mining stone should have yielded cobblestone, found " + cobble);
+
+            command(context, "/famulus place minecraft:cobblestone 60 -60 62");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 600);
+            boolean placed = context.computeOnClient(client -> client.level
+                    .getBlockState(new net.minecraft.core.BlockPos(60, -60, 62))
+                    .is(net.minecraft.world.level.block.Blocks.COBBLESTONE));
+            System.out.println("[FamulusPlace] placed=" + placed);
+            context.takeScreenshot("famulus-place-done");
+            require(placed, "The cobblestone should have been placed at 60,-60,62");
+
             context.setScreen(FamulusClient::createScreen);
             context.waitTick();
             context.takeScreenshot("famulus-screen-agent");
@@ -199,6 +225,10 @@ public final class GatherClientGameTest implements FabricClientGameTest {
 
     private static int oakCount(Minecraft client) {
         return client.player.getInventory().countItem(Items.OAK_LOG);
+    }
+
+    private static int cobbleCount(Minecraft client) {
+        return client.player.getInventory().countItem(Items.COBBLESTONE);
     }
 
     private static int plankCount(Minecraft client) {

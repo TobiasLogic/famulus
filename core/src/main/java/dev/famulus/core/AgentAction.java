@@ -2,13 +2,13 @@ package dev.famulus.core;
 
 public enum AgentAction {
     GATHER(true),
-    MINE(false),
+    MINE(true),
     CRAFT(true),
     TRAVEL(true),
 
     EXPLORE(true),
     BUILD(true),
-    PLACE_BLOCK(false),
+    PLACE_BLOCK(true),
     INTERACT(false),
     DEPOSIT_ITEM(true),
     WITHDRAW_ITEM(true),

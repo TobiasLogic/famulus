@@ -19,6 +19,8 @@ Famulus is a Fabric client mod for **Minecraft Java 26.2**. It uses
 * Travels to a coordinate
 * Crafts anything it knows a recipe for, using a crafting table when one is in reach and the
   inventory grid when it is not
+* Mines a named block for its drop, so stone gives cobblestone and ores give what they drop
+* Places a single block at a coordinate
 * Turns plain language into a plan, so "get me wood and dirt for a shelter" becomes real tasks
 * Stops, reports and asks for a new plan when something is genuinely stuck, instead of looping
 
@@ -90,6 +92,8 @@ Commands work too, if you prefer typing:
 | `/famulus deposit <item> <count>` | Put items into a nearby container |
 | `/famulus withdraw <item> <count>` | Take items out of a nearby container |
 | `/famulus craft <item> <count>` | Craft an item |
+| `/famulus mine <block> <item> <count>` | Mine a block until you hold enough of its drop |
+| `/famulus place <item> <x> <y> <z>` | Place one block at a coordinate |
 | `/famulus status` | Current plan and recent activity |
 | `/famulus stop` | Cancel everything it started |
 
@@ -153,12 +157,12 @@ including failure.
 
 Worth knowing before you expect too much:
 
-* Gathering covers logs, dirt, sand and red sand. Anything needing a specific tool, a recipe or a
-  trade is refused with an explanation rather than attempted.
+* The gather command covers logs, dirt, sand and red sand. For anything else use mine, which takes
+  the block and its drop explicitly and does not go through that list.
 * Storing items works with a chest in reach, and with a shulker box when there is none. Both are
   tested in a live game.
-* Placing single blocks and interacting with entities are not implemented. A plan that needs them is
-  refused rather than half attempted.
+* Interacting with entities is not implemented. A plan that needs it is refused rather than half
+  attempted.
 * Baritone leaves behind any blocks it pillars up on to reach something. Fine for a solid structure,
   a problem for anything with redstone in it.
 * Baritone does not give up searching for a block that is not there, so a task for something

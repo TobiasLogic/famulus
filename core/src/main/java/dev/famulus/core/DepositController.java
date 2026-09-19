@@ -46,6 +46,9 @@ public final class DepositController {
         } else if (nextTask instanceof PlannedTask.Craft craft) {
             withdrawing = true;
             amount = craft.count();
+        } else if (nextTask instanceof PlannedTask.PlaceBlock) {
+            withdrawing = false;
+            amount = 1;
         } else {
             throw new IllegalArgumentException("Not a transfer or craft task: " + nextTask.describe());
         }

@@ -30,6 +30,45 @@ public sealed interface PlannedTask {
         }
     }
 
+    record Mine(String id, String blockId, String itemId, int count) implements PlannedTask {
+        public Mine {
+            requireId(id);
+            requireItem(blockId);
+            requireItem(itemId);
+            requireCount(count, "Mine");
+        }
+
+        @Override
+        public AgentAction action() {
+            return AgentAction.MINE;
+        }
+
+        @Override
+        public String describe() {
+            return "mine " + blockId + " for " + count + " " + itemId;
+        }
+    }
+
+    record PlaceBlock(String id, String itemId, int x, int y, int z) implements PlannedTask {
+        public PlaceBlock {
+            requireId(id);
+            requireItem(itemId);
+            if (y < -256 || y > 512) {
+                throw new IllegalArgumentException("Placement height is outside any world: " + y);
+            }
+        }
+
+        @Override
+        public AgentAction action() {
+            return AgentAction.PLACE_BLOCK;
+        }
+
+        @Override
+        public String describe() {
+            return "place " + itemId + " at " + x + "," + y + "," + z;
+        }
+    }
+
     record Build(String id, String blueprint, int originX, int originY, int originZ) implements PlannedTask {
         public Build {
             requireId(id);

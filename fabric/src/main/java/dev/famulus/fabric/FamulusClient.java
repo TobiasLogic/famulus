@@ -106,6 +106,26 @@ public final class FamulusClient implements ClientModInitializer {
                                                         new PlannedTask.Withdraw("w1",
                                                                 context.getArgument("item", Identifier.class).toString(),
                                                                 IntegerArgumentType.getInteger(context, "count")))))))
+                        .then(literal("mine")
+                                .then(argument("block", IdentifierArgument.id())
+                                        .then(argument("item", IdentifierArgument.id())
+                                                .then(argument("count", IntegerArgumentType.integer(1, 2304))
+                                                        .executes(context -> single(context.getSource(),
+                                                                new PlannedTask.Mine("m1",
+                                                                        context.getArgument("block", Identifier.class).toString(),
+                                                                        context.getArgument("item", Identifier.class).toString(),
+                                                                        IntegerArgumentType.getInteger(context, "count"))))))))
+                        .then(literal("place")
+                                .then(argument("item", IdentifierArgument.id())
+                                        .then(argument("x", IntegerArgumentType.integer(-30000000, 30000000))
+                                                .then(argument("y", IntegerArgumentType.integer(-256, 512))
+                                                        .then(argument("z", IntegerArgumentType.integer(-30000000, 30000000))
+                                                                .executes(context -> single(context.getSource(),
+                                                                        new PlannedTask.PlaceBlock("p1",
+                                                                                context.getArgument("item", Identifier.class).toString(),
+                                                                                IntegerArgumentType.getInteger(context, "x"),
+                                                                                IntegerArgumentType.getInteger(context, "y"),
+                                                                                IntegerArgumentType.getInteger(context, "z")))))))))
                         .then(literal("craft")
                                 .then(argument("item", IdentifierArgument.id())
                                         .then(argument("count", IntegerArgumentType.integer(1, 2304))
