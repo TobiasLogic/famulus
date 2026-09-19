@@ -82,8 +82,11 @@ public final class ToolCheck {
     }
 
     private static BlockState stateOf(String blockId) {
-        Block block = BuiltInRegistries.BLOCK.getValue(Identifier.parse(blockId.trim()));
-        return block == null ? null : block.defaultBlockState();
+        Identifier id = Identifier.parse(blockId.trim());
+        if (!BuiltInRegistries.BLOCK.containsKey(id)) {
+            return null;
+        }
+        return BuiltInRegistries.BLOCK.getValue(id).defaultBlockState();
     }
 
     private static int bestToolSlot(Minecraft client, BlockState state) {

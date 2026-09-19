@@ -283,12 +283,42 @@ public final class GatherClientGameTest implements FabricClientGameTest {
                     "A block held outside the hotbar should be brought to hand and placed");
 
             world.getServer().runCommand("tp @a 60.5 -60 60.5 0 0");
+            world.getServer().runCommand("summon minecraft:oak_boat 61.5 -60 60.5");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+
+            command(context, "/famulus interact minecraft:oak_boat");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 900);
+            boolean riding = context.computeOnClient(client -> client.player.getVehicle() != null);
+            System.out.println("[FamulusEntity] riding the boat=" + riding);
+            context.takeScreenshot("famulus-entity-interact");
+            require(riding, "Interacting with a boat should have put the player in it");
+            world.getServer().runCommand("tp @a 60.5 -60 60.5 0 0");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+
+            long typoAt = System.currentTimeMillis();
+            command(context, "/famulus interact minecraft:not_a_real_block");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 900);
+            long typoMillis = System.currentTimeMillis() - typoAt;
+            String typoNote = lastLogMentioning("unknown block or entity");
+            System.out.println("[FamulusUnknownId] refused in " + typoMillis + "ms: " + typoNote);
+            require(!typoNote.isEmpty(),
+                    "The reason should reach the agent log, not just the executor, log was "
+                    + FamulusClient.agent().recentLog());
+            require(typoMillis < 60_000,
+                    "An id that cannot exist should not be left to the stall timeout; took "
+                    + typoMillis + "ms");
+
             world.getServer().runCommand("item replace entity @a hotbar.8 with minecraft:iron_sword 1");
-            world.getServer().runCommand("summon minecraft:cow 64.5 -60 60.5");
-            world.getServer().runCommand("summon minecraft:cow 65.5 -60 61.5");
+            world.getServer().runCommand("summon minecraft:cow 59.5 -60 58.5 {NoAI:1b}");
+            world.getServer().runCommand("summon minecraft:cow 58.5 -60 59.5 {NoAI:1b}");
             context.waitTick();
             world.getConnection().waitForClientboundPackets();
             world.getConnection().waitForChunksRender();
+            context.waitFor(client -> cowCount(client) == 2, 200);
 
             command(context, "/famulus attack minecraft:cow 2");
             context.waitFor(client -> FamulusClient.agent() != null

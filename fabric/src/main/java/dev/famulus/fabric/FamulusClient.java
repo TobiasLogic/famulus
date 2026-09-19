@@ -201,7 +201,7 @@ public final class FamulusClient implements ClientModInitializer {
                 "key.famulus.open", InputConstants.Type.KEYSYM,
                 InputConstants.KEY_G, KeyMapping.Category.MISC));
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
-        LOGGER.info("Famulus 0.4.0 initialized for Minecraft 26.2. Policy {}. Schematic formats: {}",
+        LOGGER.info("Famulus 0.5.0 initialized for Minecraft 26.2. Policy {}. Schematic formats: {}",
                 agent == null ? "unavailable" : agent.policyState(),
                 String.join(", ", SchematicAnalyzer.supportedExtensions()));
     }

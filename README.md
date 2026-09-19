@@ -21,7 +21,11 @@ Famulus is a Fabric client mod for **Minecraft Java 26.2**. It uses
   inventory grid when it is not
 * Smelts in a furnace, choosing its own fuel from what you carry, and consumes only as much input as
   the task asked for
-* Refuses to start mining something its tools cannot drop, and says which tool is needed
+* Refuses to start mining something its tools cannot drop, says which tool is needed, and crafts
+  that tool itself when it can
+* Eats when it gets hungry, without being told, and keeps going
+* Fights: walks to an entity and kills it, so it can hunt or clear the way
+* Uses entities as well as blocks, so it can get into a boat or open a villager's trades
 * Mines a named block for its drop, so stone gives cobblestone and ores give what they drop
 * Places a single block at a coordinate
 * Uses a block, such as flipping a lever or opening a door, and checks it actually changed
@@ -98,6 +102,8 @@ Commands work too, if you prefer typing:
 | `/famulus withdraw <item> <count>` | Take items out of a nearby container |
 | `/famulus craft <item> <count>` | Craft an item |
 | `/famulus smelt <item> <count>` | Cook something in a nearby furnace |
+| `/famulus eat` | Eat until nearly full |
+| `/famulus attack <entity> <count>` | Kill that many of an entity nearby |
 | `/famulus mine <block> <item> <count>` | Mine a block until you hold enough of its drop |
 | `/famulus place <item> <x> <y> <z>` | Place one block at a coordinate |
 | `/famulus interact <block>` | Use the nearest block of that kind |
@@ -173,10 +179,11 @@ Worth knowing before you expect too much:
   the deepslate variant.
 * Storing items works with a chest in reach, and with a shulker box when there is none. Both are
   tested in a live game.
-* Interacting means using a block, such as a lever, button or door, and it is confirmed by the block
-  changing state. Trading with villagers and other entity interactions are not implemented.
-* There is no combat, no eating and no armour handling, so it cannot defend itself, feed itself or
-  survive a night it was not sent indoors for.
+* Interacting covers blocks and entities. A block is confirmed by its state changing; an entity is
+  confirmed by the player ending up riding it or a container opening, so a use with no visible
+  result, such as feeding an animal, reports a failure even though it worked.
+* There is no armour handling and no fleeing, so it will stand and fight something it cannot beat.
+  Attacking is for hunting and clearing, not for surviving a siege.
 * It checks you are carrying a tool that will actually drop the block before it starts, using the
   game's own rules rather than a table of its own, and picks the fastest suitable one you have. It
   cannot yet craft the missing tool by itself, so with no model configured a missing pickaxe ends

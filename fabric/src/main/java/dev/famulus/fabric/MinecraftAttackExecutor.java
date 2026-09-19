@@ -97,11 +97,12 @@ public final class MinecraftAttackExecutor implements BuildExecutor {
     }
 
     private void locate(Minecraft client) {
-        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.parse(targetId));
-        if (type == null) {
+        Identifier id = Identifier.parse(targetId);
+        if (!BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
             fail("unknown entity: " + targetId);
             return;
         }
+        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(id);
         Vec3 origin = client.player.position();
         AABB box = client.player.getBoundingBox().inflate(SEARCH_RADIUS);
         List<Entity> found = client.level.getEntities(client.player, box,

@@ -8,6 +8,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -15,6 +17,8 @@ import net.minecraft.world.phys.Vec3;
 
 public final class MinecraftInteractExecutor implements BuildExecutor {
     public static final int SEARCH_RADIUS = 5;
+    public static final int ENTITY_RADIUS = 8;
+    private static final double REACH = 3.0;
     private static final int STEP_TIMEOUT_TICKS = 120;
 
     public enum Step { IDLE, LOCATING, USING, DONE, FAILED }
@@ -24,6 +28,8 @@ public final class MinecraftInteractExecutor implements BuildExecutor {
     private String targetId;
     private BlockPos target;
     private BlockState before;
+    private Entity entity;
+    private boolean entityTarget;
     private int ticksInStep;
     private int ticksChanged;
 
@@ -35,6 +41,8 @@ public final class MinecraftInteractExecutor implements BuildExecutor {
         targetId = interact.target();
         target = null;
         before = null;
+        entity = null;
+        entityTarget = false;
         ticksInStep = 0;
         ticksChanged = 0;
         step = Step.LOCATING;
@@ -83,12 +91,27 @@ public final class MinecraftInteractExecutor implements BuildExecutor {
         }
     }
 
+    public boolean isEntityTarget() {
+        return entityTarget;
+    }
+
+    public Entity entity() {
+        return entity;
+    }
+
     private void locate(Minecraft client) {
-        Block wanted = BuiltInRegistries.BLOCK.getValue(Identifier.parse(targetId));
-        if (wanted == null) {
-            fail("unknown block: " + targetId);
+        Identifier id = Identifier.parse(targetId);
+        EntityType<?> wantedEntity = BuiltInRegistries.ENTITY_TYPE.containsKey(id)
+                ? BuiltInRegistries.ENTITY_TYPE.getValue(id) : null;
+        if (wantedEntity != null && !BuiltInRegistries.BLOCK.containsKey(id)) {
+            locateEntity(client, wantedEntity);
             return;
         }
+        if (!BuiltInRegistries.BLOCK.containsKey(id)) {
+            fail("unknown block or entity: " + targetId);
+            return;
+        }
+        Block wanted = BuiltInRegistries.BLOCK.getValue(id);
         BlockPos origin = client.player.blockPosition();
         BlockPos best = null;
         double bestDistance = Double.MAX_VALUE;
@@ -116,7 +139,56 @@ public final class MinecraftInteractExecutor implements BuildExecutor {
         advance(Step.USING, "using " + targetId);
     }
 
+    private void locateEntity(Minecraft client, EntityType<?> wanted) {
+        Vec3 origin = client.player.position();
+        Entity best = client.level.getEntities(client.player,
+                        client.player.getBoundingBox().inflate(ENTITY_RADIUS),
+                        candidate -> candidate.getType() == wanted && candidate.isAlive())
+                .stream()
+                .min(java.util.Comparator.comparingDouble(
+                        candidate -> candidate.position().distanceToSqr(origin)))
+                .orElse(null);
+        if (best == null) {
+            fail("no " + targetId + " within " + ENTITY_RADIUS + " blocks");
+            return;
+        }
+        entity = best;
+        entityTarget = true;
+        advance(Step.USING, "using " + targetId);
+    }
+
+    private void useEntity(Minecraft client) {
+        if (entity == null || !entity.isAlive()) {
+            fail(targetId + " is gone");
+            return;
+        }
+        if (client.player.position().distanceToSqr(entity.position()) > REACH * REACH) {
+            fail(targetId + " is out of reach; travel closer first");
+            return;
+        }
+        if (client.player.getVehicle() != null
+                || client.player.containerMenu != client.player.inventoryMenu) {
+            advance(Step.DONE, targetId + " responded");
+            return;
+        }
+        client.player.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
+                entity.getEyePosition());
+        if (ticksInStep < 5) {
+            return;
+        }
+        if (ticksInStep % 10 != 0) {
+            return;
+        }
+        client.gameMode.interact(client.player, entity,
+                new net.minecraft.world.phys.EntityHitResult(entity), InteractionHand.MAIN_HAND);
+        client.player.swing(InteractionHand.MAIN_HAND);
+    }
+
     private void use(Minecraft client) {
+        if (entityTarget) {
+            useEntity(client);
+            return;
+        }
         BlockState now = client.level.getBlockState(target);
         if (!now.equals(before)) {
             if (++ticksChanged >= 5) {

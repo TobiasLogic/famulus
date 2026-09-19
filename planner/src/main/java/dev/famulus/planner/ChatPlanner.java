@@ -82,8 +82,10 @@ public final class ChatPlanner implements PlannerClient {
                  deposit  - move items from the inventory into the nearest container.
                             "item", "count".
                  withdraw - take items out of the nearest container. "item", "count".
-                 interact - right click the nearest block of a kind, for a lever, button,
-                            door or bed. "target".
+                 interact - right click the nearest block or entity of a kind, for a lever,
+                            button, door, bed, boat, minecart or villager. "target" is a
+                            block id or an entity id. An entity must already be within
+                            about 3 blocks, so travel first.
                  attack   - kill entities by type. "target" is an entity id such as
                             minecraft:cow, and "count" is how many. It walks to each one,
                             so use it for hunting food or clearing a spawner, not for

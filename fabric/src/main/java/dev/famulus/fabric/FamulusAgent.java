@@ -332,7 +332,12 @@ public final class FamulusAgent {
                 return;
             }
         } else {
+            String detail = interactExecutor.lastStep();
             interacting.tick(observeInteract(client), nowMillis);
+            if (!interacting.isRunning()) {
+                finishTask(withDetail(interacting.result(), detail));
+                return;
+            }
         }
         if (!interacting.isRunning()) {
             finishTask(interacting.result());
@@ -351,7 +356,12 @@ public final class FamulusAgent {
                 return;
             }
         } else {
+            String detail = eatExecutor.lastStep();
             eating.tick(observeEat(client, eatTask), nowMillis);
+            if (!eating.isRunning()) {
+                finishTask(withDetail(eating.result(), detail));
+                return;
+            }
         }
         if (!eating.isRunning()) {
             finishTask(eating.result());
@@ -381,7 +391,12 @@ public final class FamulusAgent {
                 return;
             }
         } else {
+            String detail = attackExecutor.lastStep();
             fighting.tick(observeAttack(client, attackTask), nowMillis);
+            if (!fighting.isRunning()) {
+                finishTask(withDetail(fighting.result(), detail));
+                return;
+            }
         }
         if (!fighting.isRunning()) {
             finishTask(fighting.result());
@@ -403,7 +418,11 @@ public final class FamulusAgent {
             return new BuildSnapshot(false, false, "disconnected", 0, 0, false);
         }
         int remaining = 1;
-        if (interactExecutor.target() != null && interactExecutor.before() != null
+        if (interactExecutor.isEntityTarget()) {
+            if (interactExecutor.step() == MinecraftInteractExecutor.Step.DONE) {
+                remaining = 0;
+            }
+        } else if (interactExecutor.target() != null && interactExecutor.before() != null
                 && !client.level.getBlockState(interactExecutor.target()).equals(interactExecutor.before())) {
             remaining = 0;
         }
@@ -625,6 +644,15 @@ public final class FamulusAgent {
         String worldKey = FamulusClient.OBSERVER.worldKey(client);
         return new BuildSnapshot(true, client.player.isAlive() && !client.player.isRemoved(),
                 worldKey, progress.remaining(), progress.total(), progress.hasMaterials());
+    }
+
+    private static TaskResult withDetail(TaskResult result, String detail) {
+        if (result.status() == TaskStatus.SUCCESS || detail == null || detail.isBlank()
+                || result.message().contains(detail)) {
+            return result;
+        }
+        return new TaskResult(result.status(), result.message() + "; " + detail,
+                result.currentCount(), result.targetCount(), result.attempts());
     }
 
     private void finishTask(TaskResult result) {
