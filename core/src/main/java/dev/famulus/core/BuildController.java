@@ -7,7 +7,7 @@ public final class BuildController {
 
     private final BuildExecutor executor;
     private final GatherConfig config;
-    private PlannedTask.Build task;
+    private PlannedTask task;
     private TaskResult result = new TaskResult(TaskStatus.IDLE, "No build", 0, 0, 0);
     private String initialWorldKey;
     private int remaining;
@@ -28,7 +28,7 @@ public final class BuildController {
         this.config = Objects.requireNonNull(config, "config");
     }
 
-    public void start(PlannedTask.Build nextTask, BuildSnapshot snapshot, long nowMillis) {
+    public void start(PlannedTask nextTask, BuildSnapshot snapshot, long nowMillis) {
         Objects.requireNonNull(nextTask, "task");
         Objects.requireNonNull(snapshot, "snapshot");
         if (isRunning() || ownsExecution) {
@@ -48,9 +48,9 @@ public final class BuildController {
             return;
         }
         if (snapshot.totalBlocks() == 0) {
-            finish(TaskStatus.INVALID_TARGET, "The blueprint contains no placeable blocks");
+            finish(TaskStatus.INVALID_TARGET, "Nothing to do for " + task.describe());
         } else if (snapshot.isComplete()) {
-            finish(TaskStatus.SUCCESS, "The structure already matches the blueprint");
+            finish(TaskStatus.SUCCESS, "Already in the wanted state");
         } else if (!snapshot.hasMaterials()) {
             finish(TaskStatus.RESOURCE_MISSING, "Missing materials for " + remaining + " blocks");
         } else {
@@ -79,7 +79,7 @@ public final class BuildController {
             return;
         }
         if (snapshot.isComplete()) {
-            finish(TaskStatus.SUCCESS, "Structure matches the blueprint");
+            finish(TaskStatus.SUCCESS, "World matches what was asked for");
             return;
         }
         if (remaining < bestRemaining) {
@@ -145,7 +145,7 @@ public final class BuildController {
         return result.status() == TaskStatus.RUNNING || result.status() == TaskStatus.RECOVERING;
     }
 
-    public PlannedTask.Build task() {
+    public PlannedTask task() {
         return task;
     }
 

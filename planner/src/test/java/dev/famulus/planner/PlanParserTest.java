@@ -98,10 +98,11 @@ class PlanParserTest {
     }
 
     @Test
-    void refusesActionsThatHaveNoExecutorYet() {
-        assertTrue(refuse("""
-                {"goal":"talk","tasks":[{"type":"interact","target":"minecraft:villager"}]}
-                """).getMessage().contains("not implemented"));
+    void acceptsAnInteractionNowThatItHasAnExecutor() throws Exception {
+        TaskPlan plan = parse("""
+                {"goal":"talk","tasks":[{"type":"interact","target":"minecraft:lever"}]}
+                """);
+        assertInstanceOf(PlannedTask.Interact.class, plan.tasks().get(0));
     }
 
     @Test

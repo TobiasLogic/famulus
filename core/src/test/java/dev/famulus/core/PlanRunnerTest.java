@@ -177,14 +177,20 @@ class PlanRunnerTest {
     }
 
     @Test
-    void aPlanContainingAnUnexecutableTaskIsRefusedUpFront() {
-        TaskPlan withBuild = new TaskPlan("store something",
-                List.of(LOGS, new PlannedTask.Interact("i1", "minecraft:villager")));
-        assertFalse(withBuild.isExecutable());
-        assertEquals(1, withBuild.unexecutable().size());
-        IllegalArgumentException refused =
-                assertThrows(IllegalArgumentException.class, () -> new PlanRunner(withBuild, 3));
-        assertTrue(refused.getMessage().contains("interact"));
+    void everyTaskTypeCanBePlannedNowThatEachHasAnExecutor() {
+        TaskPlan everything = new TaskPlan("do everything", List.of(
+                LOGS,
+                new PlannedTask.Mine("m", "minecraft:stone", "minecraft:cobblestone", 8),
+                new PlannedTask.Craft("c", "minecraft:oak_planks", 4),
+                new PlannedTask.Travel("t", 10, 64, 10),
+                new PlannedTask.Deposit("d", "minecraft:dirt", 1),
+                new PlannedTask.Withdraw("w", "minecraft:dirt", 1),
+                new PlannedTask.PlaceBlock("p", "minecraft:cobblestone", 1, 2, 3),
+                new PlannedTask.Interact("i", "minecraft:lever"),
+                new PlannedTask.Build("b", "hut.schem", 0, 0, 0)));
+        assertTrue(everything.isExecutable());
+        assertTrue(everything.unexecutable().isEmpty());
+        assertDoesNotThrow(() -> new PlanRunner(everything, 3));
     }
 
     @Test

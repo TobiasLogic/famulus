@@ -60,7 +60,10 @@ public final class BaritoneBuildExecutor implements BuildExecutor {
     }
 
     @Override
-    public void start(PlannedTask.Build task) {
+    public void start(PlannedTask task) {
+        if (!(task instanceof PlannedTask.Build build)) {
+            throw new IllegalArgumentException("Not a build task: " + task.describe());
+        }
         if (schematic == null || origin == null) {
             throw new IllegalStateException("Blueprint was not loaded before building");
         }
@@ -68,7 +71,7 @@ public final class BaritoneBuildExecutor implements BuildExecutor {
             throw new IllegalStateException("Baritone is busy; stop its current task before building.");
         }
         ownsBuilding = true;
-        baritone().getBuilderProcess().build(task.blueprint(), schematic,
+        baritone().getBuilderProcess().build(build.blueprint(), schematic,
                 new Vec3i(origin.getX(), origin.getY(), origin.getZ()));
     }
 

@@ -46,6 +46,8 @@ public final class FamulusAgent {
     private final MinecraftContainerExecutor containerExecutor = new MinecraftContainerExecutor();
     private final MinecraftCraftExecutor craftExecutor = new MinecraftCraftExecutor();
     private final MinecraftPlaceExecutor placeExecutor = new MinecraftPlaceExecutor();
+    private final MinecraftInteractExecutor interactExecutor = new MinecraftInteractExecutor();
+    private final BuildController interacting;
     private final DepositController placing;
     private final DepositController crafting;
     private final BaritoneExplorer explorer = new BaritoneExplorer();
@@ -77,6 +79,7 @@ public final class FamulusAgent {
         this.transfers = new DepositController(containerExecutor, gatherConfig);
         this.crafting = new DepositController(craftExecutor, gatherConfig);
         this.placing = new DepositController(placeExecutor, gatherConfig);
+        this.interacting = new BuildController(interactExecutor, gatherConfig);
         this.exploreTimeoutMillis = exploreTimeoutMillis;
         this.credentials = credentials;
         reloadPolicy();
@@ -145,6 +148,8 @@ public final class FamulusAgent {
             craftExecutor.tick(client);
         } else if (current instanceof PlannedTask.PlaceBlock) {
             placeExecutor.tick(client);
+        } else if (current instanceof PlannedTask.Interact) {
+            interactExecutor.tick(client);
         }
     }
 
@@ -182,6 +187,10 @@ public final class FamulusAgent {
             runTransfer(client, nowMillis, task, placing);
             return;
         }
+        if (task instanceof PlannedTask.Interact interactTask) {
+            runInteract(client, nowMillis, interactTask);
+            return;
+        }
         if (task instanceof PlannedTask.Mine mineTask) {
             runGather(client, nowMillis, mineTask.blockId(), mineTask.itemId(), mineTask.count());
             return;
@@ -192,6 +201,42 @@ public final class FamulusAgent {
         }
         finishTask(new TaskResult(TaskStatus.INVALID_TARGET,
                 "No executor for " + task.describe(), 0, 0, 0));
+    }
+
+    private void runInteract(Minecraft client, long nowMillis, PlannedTask.Interact interactTask) {
+        if (!taskStarted) {
+            taskStarted = true;
+            note("running " + interactTask.describe());
+            try {
+                interacting.start(interactTask, observeInteract(client), nowMillis);
+            } catch (RuntimeException failure) {
+                finishTask(new TaskResult(TaskStatus.FAILED,
+                        "Could not start: " + failure.getMessage(), 0, 0, 0));
+                return;
+            }
+        } else {
+            interacting.tick(observeInteract(client), nowMillis);
+        }
+        if (!interacting.isRunning()) {
+            finishTask(interacting.result());
+        }
+    }
+
+    private BuildSnapshot observeInteract(Minecraft client) {
+        if (client.level == null || client.player == null) {
+            return new BuildSnapshot(false, false, "disconnected", 0, 0, false);
+        }
+        int remaining = 1;
+        if (interactExecutor.target() != null && interactExecutor.before() != null
+                && !client.level.getBlockState(interactExecutor.target()).equals(interactExecutor.before())) {
+            remaining = 0;
+        }
+        if (interactExecutor.step() == MinecraftInteractExecutor.Step.FAILED) {
+            return new BuildSnapshot(true, client.player.isAlive(),
+                    FamulusClient.OBSERVER.worldKey(client), remaining, 1, false);
+        }
+        return new BuildSnapshot(true, client.player.isAlive() && !client.player.isRemoved(),
+                FamulusClient.OBSERVER.worldKey(client), remaining, 1, true);
     }
 
     private void runGather(Minecraft client, long nowMillis, String blockId, String itemId, int count) {
@@ -417,6 +462,7 @@ public final class FamulusAgent {
         transfers.stop(reason);
         crafting.stop(reason);
         placing.stop(reason);
+        interacting.stop(reason);
         if (exploring) {
             explorer.cancel();
             exploring = false;

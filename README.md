@@ -21,6 +21,7 @@ Famulus is a Fabric client mod for **Minecraft Java 26.2**. It uses
   inventory grid when it is not
 * Mines a named block for its drop, so stone gives cobblestone and ores give what they drop
 * Places a single block at a coordinate
+* Uses a block, such as flipping a lever or opening a door, and checks it actually changed
 * Turns plain language into a plan, so "get me wood and dirt for a shelter" becomes real tasks
 * Stops, reports and asks for a new plan when something is genuinely stuck, instead of looping
 
@@ -94,6 +95,7 @@ Commands work too, if you prefer typing:
 | `/famulus craft <item> <count>` | Craft an item |
 | `/famulus mine <block> <item> <count>` | Mine a block until you hold enough of its drop |
 | `/famulus place <item> <x> <y> <z>` | Place one block at a coordinate |
+| `/famulus interact <block>` | Use the nearest block of that kind |
 | `/famulus status` | Current plan and recent activity |
 | `/famulus stop` | Cancel everything it started |
 
@@ -161,8 +163,8 @@ Worth knowing before you expect too much:
   the block and its drop explicitly and does not go through that list.
 * Storing items works with a chest in reach, and with a shulker box when there is none. Both are
   tested in a live game.
-* Interacting with entities is not implemented. A plan that needs it is refused rather than half
-  attempted.
+* Interacting means using a block, such as a lever, button or door, and it is confirmed by the block
+  changing state. Trading with villagers and other entity interactions are not implemented.
 * Baritone leaves behind any blocks it pillars up on to reach something. Fine for a solid structure,
   a problem for anything with redstone in it.
 * Baritone does not give up searching for a block that is not there, so a task for something

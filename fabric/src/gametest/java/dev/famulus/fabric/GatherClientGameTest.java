@@ -199,6 +199,23 @@ public final class GatherClientGameTest implements FabricClientGameTest {
             context.takeScreenshot("famulus-place-done");
             require(placed, "The cobblestone should have been placed at 60,-60,62");
 
+            world.getServer().runCommand("setblock 61 -60 60 minecraft:lever[face=floor,facing=north]");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            boolean leverBefore = context.computeOnClient(client -> client.level
+                    .getBlockState(new net.minecraft.core.BlockPos(61, -60, 60))
+                    .getValue(net.minecraft.world.level.block.LeverBlock.POWERED));
+
+            command(context, "/famulus interact minecraft:lever");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 600);
+            boolean leverAfter = context.computeOnClient(client -> client.level
+                    .getBlockState(new net.minecraft.core.BlockPos(61, -60, 60))
+                    .getValue(net.minecraft.world.level.block.LeverBlock.POWERED));
+            System.out.println("[FamulusInteract] lever " + leverBefore + " -> " + leverAfter);
+            context.takeScreenshot("famulus-interact-done");
+            require(leverAfter != leverBefore, "Flipping the lever should have changed its state");
+
             context.setScreen(FamulusClient::createScreen);
             context.waitTick();
             context.takeScreenshot("famulus-screen-agent");

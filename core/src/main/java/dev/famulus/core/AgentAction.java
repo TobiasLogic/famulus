@@ -9,7 +9,7 @@ public enum AgentAction {
     EXPLORE(true),
     BUILD(true),
     PLACE_BLOCK(true),
-    INTERACT(false),
+    INTERACT(true),
     DEPOSIT_ITEM(true),
     WITHDRAW_ITEM(true),
     WAIT(true),

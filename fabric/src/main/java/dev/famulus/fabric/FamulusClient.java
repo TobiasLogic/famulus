@@ -106,6 +106,11 @@ public final class FamulusClient implements ClientModInitializer {
                                                         new PlannedTask.Withdraw("w1",
                                                                 context.getArgument("item", Identifier.class).toString(),
                                                                 IntegerArgumentType.getInteger(context, "count")))))))
+                        .then(literal("interact")
+                                .then(argument("block", IdentifierArgument.id())
+                                        .executes(context -> single(context.getSource(),
+                                                new PlannedTask.Interact("i1",
+                                                        context.getArgument("block", Identifier.class).toString())))))
                         .then(literal("mine")
                                 .then(argument("block", IdentifierArgument.id())
                                         .then(argument("item", IdentifierArgument.id())

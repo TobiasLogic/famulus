@@ -19,7 +19,7 @@ class BuildControllerTest {
         RuntimeException startFailure;
 
         @Override
-        public void start(PlannedTask.Build task) {
+        public void start(PlannedTask task) {
             starts++;
             if (startFailure != null) {
                 throw startFailure;
