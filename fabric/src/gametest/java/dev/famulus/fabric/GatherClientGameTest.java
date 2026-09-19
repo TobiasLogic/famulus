@@ -115,6 +115,22 @@ public final class GatherClientGameTest implements FabricClientGameTest {
                 System.out.println("[FamulusPolicy] " + decision().orElse("no decision"));
             }
 
+            world.getServer().runCommand("clear @a");
+            world.getServer().runCommand("tp @a 0.5 -60 0.5 0 0");
+            world.getServer().runCommand("give @a minecraft:oak_log 64");
+            world.getServer().runCommand("setblock 1 -60 0 minecraft:chest");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            context.runOnClient(client -> require(oakCount(client) == 64, "Deposit fixture needs 64 logs"));
+
+            command(context, "/famulus deposit minecraft:oak_log 32");
+            context.waitFor(client -> oakCount(client) <= 32, 1200);
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 600);
+            context.runOnClient(client -> require(oakCount(client) == 32,
+                    "Depositing 32 of 64 logs must leave exactly 32, found " + oakCount(client)));
+            context.takeScreenshot("famulus-deposit-done");
+
             context.setScreen(FamulusClient::createScreen);
             context.waitTick();
             context.takeScreenshot("famulus-screen-agent");

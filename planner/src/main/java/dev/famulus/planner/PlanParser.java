@@ -90,8 +90,14 @@ public final class PlanParser {
                 }
                 yield new PlannedTask.Gather(id, item, count);
             }
-            case "deposit", "deposit_item" ->
+            case "deposit", "deposit_item", "store" ->
                     new PlannedTask.Deposit(id, requireItem(task, index), requireCount(task, index));
+            case "withdraw", "withdraw_item", "take" ->
+                    new PlannedTask.Withdraw(id, requireItem(task, index), requireCount(task, index));
+            case "craft" ->
+                    new PlannedTask.Craft(id, requireItem(task, index), requireCount(task, index));
+            case "travel", "goto", "move" -> new PlannedTask.Travel(id,
+                    integer(task, "x", 0), integer(task, "y", 64), integer(task, "z", 0));
             case "build" -> {
                 String blueprint = string(task, "blueprint");
                 if (blueprint == null || blueprint.isBlank()) {

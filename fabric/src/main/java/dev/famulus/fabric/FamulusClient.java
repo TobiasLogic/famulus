@@ -83,6 +83,29 @@ public final class FamulusClient implements ClientModInitializer {
                                 .then(argument("spec", StringArgumentType.greedyString())
                                         .executes(context -> queue(context.getSource(),
                                                 StringArgumentType.getString(context, "spec")))))
+                        .then(literal("travel")
+                                .then(argument("x", IntegerArgumentType.integer(-30000000, 30000000))
+                                        .then(argument("y", IntegerArgumentType.integer(-256, 512))
+                                                .then(argument("z", IntegerArgumentType.integer(-30000000, 30000000))
+                                                        .executes(context -> single(context.getSource(),
+                                                                new PlannedTask.Travel("t1",
+                                                                        IntegerArgumentType.getInteger(context, "x"),
+                                                                        IntegerArgumentType.getInteger(context, "y"),
+                                                                        IntegerArgumentType.getInteger(context, "z"))))))))
+                        .then(literal("deposit")
+                                .then(argument("item", IdentifierArgument.id())
+                                        .then(argument("count", IntegerArgumentType.integer(1, 2304))
+                                                .executes(context -> single(context.getSource(),
+                                                        new PlannedTask.Deposit("d1",
+                                                                context.getArgument("item", Identifier.class).toString(),
+                                                                IntegerArgumentType.getInteger(context, "count")))))))
+                        .then(literal("withdraw")
+                                .then(argument("item", IdentifierArgument.id())
+                                        .then(argument("count", IntegerArgumentType.integer(1, 2304))
+                                                .executes(context -> single(context.getSource(),
+                                                        new PlannedTask.Withdraw("w1",
+                                                                context.getArgument("item", Identifier.class).toString(),
+                                                                IntegerArgumentType.getInteger(context, "count")))))))
                         .then(literal("build")
                                 .then(argument("schematic", StringArgumentType.string())
                                         .suggests(FamulusClient::suggestSchematics)
@@ -283,6 +306,22 @@ public final class FamulusClient implements ClientModInitializer {
         }
         source.sendFeedback(Component.literal("[Famulus] plan started: " + tasks.size()
                 + " tasks." + (agent.isPolicyConfigured() ? "" : " Policy offline; failures will just retry.")));
+        return 1;
+    }
+
+    private int single(FabricClientCommandSource source, PlannedTask task) {
+        if (!ready(source)) return 0;
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.level == null) return error(source, "Join a world first.");
+        if (agent.isRunning() || controller.isRunning()) {
+            return error(source, "Something is already running. Use /famulus stop first.");
+        }
+        try {
+            agent.start(new TaskPlan(task.describe(), List.of(task)));
+        } catch (RuntimeException failure) {
+            return error(source, failure.getMessage());
+        }
+        source.sendFeedback(Component.literal("[Famulus] " + task.describe()));
         return 1;
     }
 

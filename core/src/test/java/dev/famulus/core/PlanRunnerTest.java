@@ -179,12 +179,12 @@ class PlanRunnerTest {
     @Test
     void aPlanContainingAnUnexecutableTaskIsRefusedUpFront() {
         TaskPlan withBuild = new TaskPlan("store something",
-                List.of(LOGS, new PlannedTask.Deposit("d1", "minecraft:oak_log", 32)));
+                List.of(LOGS, new PlannedTask.Craft("c1", "minecraft:chest", 1)));
         assertFalse(withBuild.isExecutable());
         assertEquals(1, withBuild.unexecutable().size());
         IllegalArgumentException refused =
                 assertThrows(IllegalArgumentException.class, () -> new PlanRunner(withBuild, 3));
-        assertTrue(refused.getMessage().contains("deposit"));
+        assertTrue(refused.getMessage().contains("craft"));
     }
 
     @Test

@@ -3,6 +3,10 @@ package dev.famulus.fabric;
 import dev.famulus.core.AgentAction;
 import dev.famulus.core.GatherConfig;
 import dev.famulus.core.BuildController;
+import dev.famulus.core.DepositController;
+import dev.famulus.core.DepositSnapshot;
+import dev.famulus.core.TravelController;
+import dev.famulus.core.TravelSnapshot;
 import dev.famulus.core.BuildSnapshot;
 import dev.famulus.core.GatherController;
 import dev.famulus.core.GatherTask;
@@ -36,6 +40,10 @@ public final class FamulusAgent {
     private final GatherController gather;
     private final BuildController builder;
     private final BaritoneBuildExecutor buildExecutor = new BaritoneBuildExecutor();
+    private final TravelController traveller;
+    private final BaritoneTravelExecutor travelExecutor = new BaritoneTravelExecutor();
+    private final DepositController transfers;
+    private final MinecraftContainerExecutor containerExecutor = new MinecraftContainerExecutor();
     private final BaritoneExplorer explorer = new BaritoneExplorer();
     private final long exploreTimeoutMillis;
     private final PolicyGate gate;
@@ -61,6 +69,8 @@ public final class FamulusAgent {
                         CredentialStore credentials, long exploreTimeoutMillis) {
         this.gather = new GatherController(new BaritoneGatherExecutor(), gatherConfig);
         this.builder = new BuildController(buildExecutor, gatherConfig);
+        this.traveller = new TravelController(travelExecutor, gatherConfig);
+        this.transfers = new DepositController(containerExecutor, gatherConfig);
         this.exploreTimeoutMillis = exploreTimeoutMillis;
         this.credentials = credentials;
         reloadPolicy();
@@ -134,6 +144,14 @@ public final class FamulusAgent {
         PlannedTask task = runner.current();
         if (task instanceof PlannedTask.Build buildTask) {
             runBuild(client, nowMillis, buildTask);
+            return;
+        }
+        if (task instanceof PlannedTask.Travel travelTask) {
+            runTravel(client, nowMillis, travelTask);
+            return;
+        }
+        if (task instanceof PlannedTask.Deposit || task instanceof PlannedTask.Withdraw) {
+            runTransfer(client, nowMillis, task);
             return;
         }
         if (!(task instanceof PlannedTask.Gather gatherTask)) {
@@ -213,6 +231,68 @@ public final class FamulusAgent {
         }
     }
 
+    private void runTravel(Minecraft client, long nowMillis, PlannedTask.Travel travelTask) {
+        if (!taskStarted) {
+            taskStarted = true;
+            note("running " + travelTask.describe());
+            try {
+                traveller.start(travelTask, observeTravel(client, travelTask), nowMillis);
+            } catch (RuntimeException failure) {
+                finishTask(new TaskResult(TaskStatus.FAILED,
+                        "Could not start: " + failure.getMessage(), 0, 0, 0));
+                return;
+            }
+        } else {
+            traveller.tick(observeTravel(client, travelTask), nowMillis);
+        }
+        if (!traveller.isRunning()) {
+            finishTask(traveller.result());
+        }
+    }
+
+    private TravelSnapshot observeTravel(Minecraft client, PlannedTask.Travel travelTask) {
+        if (client.level == null || client.player == null) {
+            return new TravelSnapshot(false, false, "disconnected", 0);
+        }
+        double dx = client.player.getX() - (travelTask.x() + 0.5);
+        double dy = client.player.getY() - travelTask.y();
+        double dz = client.player.getZ() - (travelTask.z() + 0.5);
+        return new TravelSnapshot(true, client.player.isAlive() && !client.player.isRemoved(),
+                FamulusClient.OBSERVER.worldKey(client), Math.sqrt(dx * dx + dy * dy + dz * dz));
+    }
+
+    private void runTransfer(Minecraft client, long nowMillis, PlannedTask transferTask) {
+        if (!taskStarted) {
+            taskStarted = true;
+            note("running " + transferTask.describe());
+            try {
+                transfers.start(transferTask, observeTransfer(client, transferTask), nowMillis);
+            } catch (RuntimeException failure) {
+                finishTask(new TaskResult(TaskStatus.FAILED,
+                        "Could not start: " + failure.getMessage(), 0, 0, 0));
+                return;
+            }
+        } else {
+            containerExecutor.tick(client);
+            transfers.tick(observeTransfer(client, transferTask), nowMillis);
+        }
+        if (!transfers.isRunning()) {
+            finishTask(transfers.result());
+        }
+    }
+
+    private DepositSnapshot observeTransfer(Minecraft client, PlannedTask transferTask) {
+        String itemId = transferTask instanceof PlannedTask.Deposit deposit
+                ? deposit.itemId() : ((PlannedTask.Withdraw) transferTask).itemId();
+        if (client.level == null || client.player == null) {
+            return new DepositSnapshot(false, false, "disconnected", 0, false);
+        }
+        int held = MinecraftObserver.countAll(client, java.util.List.of(itemId)).get(itemId);
+        boolean storage = containerExecutor.step() != MinecraftContainerExecutor.Step.FAILED;
+        return new DepositSnapshot(true, client.player.isAlive() && !client.player.isRemoved(),
+                FamulusClient.OBSERVER.worldKey(client), held, storage);
+    }
+
     private BuildSnapshot observeBuild(Minecraft client) {
         if (client.level == null || client.player == null) {
             return new BuildSnapshot(false, false, "disconnected", 0, 0, false);
@@ -289,6 +369,8 @@ public final class FamulusAgent {
     public void stop(String reason) {
         gather.stop(reason);
         builder.stop(reason);
+        traveller.stop(reason);
+        transfers.stop(reason);
         if (exploring) {
             explorer.cancel();
             exploring = false;

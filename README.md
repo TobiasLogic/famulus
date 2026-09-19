@@ -14,6 +14,8 @@ Famulus is a Fabric client mod for **Minecraft Java 26.2**. It uses
 * Reads `.litematic`, `.schem` and `.schematic` files, lists the materials they need, and diffs that
   against what you are carrying
 * Builds a schematic once the materials are in hand
+* Stores items in a chest, or in a shulker box it places and picks back up when there is no chest
+* Travels to a coordinate
 * Turns plain language into a plan, so "get me wood and dirt for a shelter" becomes real tasks
 * Stops, reports and asks for a new plan when something is genuinely stuck, instead of looping
 
@@ -81,6 +83,9 @@ Commands work too, if you prefer typing:
 | `/famulus materials <file>` | What a schematic needs, against what you have |
 | `/famulus collect <file>` | Collect whatever a schematic is missing |
 | `/famulus build <file>` | Build a schematic where you are standing |
+| `/famulus travel <x> <y> <z>` | Walk to a coordinate |
+| `/famulus deposit <item> <count>` | Put items into a nearby container |
+| `/famulus withdraw <item> <count>` | Take items out of a nearby container |
 | `/famulus status` | Current plan and recent activity |
 | `/famulus stop` | Cancel everything it started |
 
@@ -146,8 +151,10 @@ Worth knowing before you expect too much:
 
 * Gathering covers logs, dirt, sand and red sand. Anything needing a specific tool, a recipe or a
   trade is refused with an explanation rather than attempted.
-* There is no chest or shulker support yet, so a single task cannot collect more than an inventory
-  holds.
+* Depositing into a chest is tested in a live game. Placing a shulker box when no chest is nearby is
+  implemented but has not been exercised, so treat that path as untested.
+* Crafting, placing single blocks and interacting with entities are not implemented. A plan that
+  needs them is refused rather than half attempted.
 * Baritone leaves behind any blocks it pillars up on to reach something. Fine for a solid structure,
   a problem for anything with redstone in it.
 * Baritone does not give up searching for a block that is not there, so a task for something

@@ -15,13 +15,8 @@ public sealed interface PlannedTask {
     record Gather(String id, String itemId, int count) implements PlannedTask {
         public Gather {
             requireId(id);
-            Objects.requireNonNull(itemId, "itemId");
-            if (!RESOURCE_ID.matcher(itemId).matches()) {
-                throw new IllegalArgumentException("Item must be a namespaced identifier: " + itemId);
-            }
-            if (count < 1) {
-                throw new IllegalArgumentException("Gather count must be positive");
-            }
+            requireItem(itemId);
+            requireCount(count, "Gather");
         }
 
         @Override
@@ -55,16 +50,30 @@ public sealed interface PlannedTask {
         }
     }
 
+    record Travel(String id, int x, int y, int z) implements PlannedTask {
+        public Travel {
+            requireId(id);
+            if (y < -256 || y > 512) {
+                throw new IllegalArgumentException("Destination height is outside any world: " + y);
+            }
+        }
+
+        @Override
+        public AgentAction action() {
+            return AgentAction.TRAVEL;
+        }
+
+        @Override
+        public String describe() {
+            return "travel to " + x + "," + y + "," + z;
+        }
+    }
+
     record Deposit(String id, String itemId, int count) implements PlannedTask {
         public Deposit {
             requireId(id);
-            Objects.requireNonNull(itemId, "itemId");
-            if (!RESOURCE_ID.matcher(itemId).matches()) {
-                throw new IllegalArgumentException("Item must be a namespaced identifier: " + itemId);
-            }
-            if (count < 1) {
-                throw new IllegalArgumentException("Deposit count must be positive");
-            }
+            requireItem(itemId);
+            requireCount(count, "Deposit");
         }
 
         @Override
@@ -78,10 +87,59 @@ public sealed interface PlannedTask {
         }
     }
 
+    record Withdraw(String id, String itemId, int count) implements PlannedTask {
+        public Withdraw {
+            requireId(id);
+            requireItem(itemId);
+            requireCount(count, "Withdraw");
+        }
+
+        @Override
+        public AgentAction action() {
+            return AgentAction.WITHDRAW_ITEM;
+        }
+
+        @Override
+        public String describe() {
+            return "withdraw " + count + " " + itemId;
+        }
+    }
+
+    record Craft(String id, String itemId, int count) implements PlannedTask {
+        public Craft {
+            requireId(id);
+            requireItem(itemId);
+            requireCount(count, "Craft");
+        }
+
+        @Override
+        public AgentAction action() {
+            return AgentAction.CRAFT;
+        }
+
+        @Override
+        public String describe() {
+            return "craft " + count + " " + itemId;
+        }
+    }
+
     private static void requireId(String id) {
         Objects.requireNonNull(id, "id");
         if (id.isBlank()) {
             throw new IllegalArgumentException("Task id must not be blank");
+        }
+    }
+
+    private static void requireItem(String itemId) {
+        Objects.requireNonNull(itemId, "itemId");
+        if (!RESOURCE_ID.matcher(itemId).matches()) {
+            throw new IllegalArgumentException("Item must be a namespaced identifier: " + itemId);
+        }
+    }
+
+    private static void requireCount(int count, String what) {
+        if (count < 1) {
+            throw new IllegalArgumentException(what + " count must be positive");
         }
     }
 }
