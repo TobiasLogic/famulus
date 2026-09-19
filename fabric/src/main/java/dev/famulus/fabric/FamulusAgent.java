@@ -44,6 +44,8 @@ public final class FamulusAgent {
     private final BaritoneTravelExecutor travelExecutor = new BaritoneTravelExecutor();
     private final DepositController transfers;
     private final MinecraftContainerExecutor containerExecutor = new MinecraftContainerExecutor();
+    private final MinecraftCraftExecutor craftExecutor = new MinecraftCraftExecutor();
+    private final DepositController crafting;
     private final BaritoneExplorer explorer = new BaritoneExplorer();
     private final long exploreTimeoutMillis;
     private final PolicyGate gate;
@@ -71,6 +73,7 @@ public final class FamulusAgent {
         this.builder = new BuildController(buildExecutor, gatherConfig);
         this.traveller = new TravelController(travelExecutor, gatherConfig);
         this.transfers = new DepositController(containerExecutor, gatherConfig);
+        this.crafting = new DepositController(craftExecutor, gatherConfig);
         this.exploreTimeoutMillis = exploreTimeoutMillis;
         this.credentials = credentials;
         reloadPolicy();
@@ -135,6 +138,8 @@ public final class FamulusAgent {
         PlannedTask current = runner.current();
         if (current instanceof PlannedTask.Deposit || current instanceof PlannedTask.Withdraw) {
             containerExecutor.tick(client);
+        } else if (current instanceof PlannedTask.Craft) {
+            craftExecutor.tick(client);
         }
     }
 
@@ -161,7 +166,11 @@ public final class FamulusAgent {
             return;
         }
         if (task instanceof PlannedTask.Deposit || task instanceof PlannedTask.Withdraw) {
-            runTransfer(client, nowMillis, task);
+            runTransfer(client, nowMillis, task, transfers);
+            return;
+        }
+        if (task instanceof PlannedTask.Craft) {
+            runTransfer(client, nowMillis, task, crafting);
             return;
         }
         if (!(task instanceof PlannedTask.Gather gatherTask)) {
@@ -271,33 +280,41 @@ public final class FamulusAgent {
                 FamulusClient.OBSERVER.worldKey(client), Math.sqrt(dx * dx + dy * dy + dz * dz));
     }
 
-    private void runTransfer(Minecraft client, long nowMillis, PlannedTask transferTask) {
+    private void runTransfer(Minecraft client, long nowMillis, PlannedTask transferTask,
+                             DepositController controller) {
         if (!taskStarted) {
             taskStarted = true;
             note("running " + transferTask.describe());
             try {
-                transfers.start(transferTask, observeTransfer(client, transferTask), nowMillis);
+                controller.start(transferTask, observeTransfer(client, transferTask), nowMillis);
             } catch (RuntimeException failure) {
                 finishTask(new TaskResult(TaskStatus.FAILED,
                         "Could not start: " + failure.getMessage(), 0, 0, 0));
                 return;
             }
         } else {
-            transfers.tick(observeTransfer(client, transferTask), nowMillis);
+            controller.tick(observeTransfer(client, transferTask), nowMillis);
         }
-        if (!transfers.isRunning()) {
-            finishTask(transfers.result());
+        if (!controller.isRunning()) {
+            finishTask(controller.result());
         }
     }
 
     private DepositSnapshot observeTransfer(Minecraft client, PlannedTask transferTask) {
-        String itemId = transferTask instanceof PlannedTask.Deposit deposit
-                ? deposit.itemId() : ((PlannedTask.Withdraw) transferTask).itemId();
+        String itemId;
+        if (transferTask instanceof PlannedTask.Deposit deposit) {
+            itemId = deposit.itemId();
+        } else if (transferTask instanceof PlannedTask.Withdraw withdraw) {
+            itemId = withdraw.itemId();
+        } else {
+            itemId = ((PlannedTask.Craft) transferTask).itemId();
+        }
         if (client.level == null || client.player == null) {
             return new DepositSnapshot(false, false, "disconnected", 0, false);
         }
         int held = MinecraftObserver.countAll(client, java.util.List.of(itemId)).get(itemId);
-        boolean storage = containerExecutor.step() != MinecraftContainerExecutor.Step.FAILED;
+        boolean storage = containerExecutor.step() != MinecraftContainerExecutor.Step.FAILED
+                && craftExecutor.step() != MinecraftCraftExecutor.Step.FAILED;
         return new DepositSnapshot(true, client.player.isAlive() && !client.player.isRemoved(),
                 FamulusClient.OBSERVER.worldKey(client), held, storage);
     }
@@ -380,6 +397,7 @@ public final class FamulusAgent {
         builder.stop(reason);
         traveller.stop(reason);
         transfers.stop(reason);
+        crafting.stop(reason);
         if (exploring) {
             explorer.cancel();
             exploring = false;

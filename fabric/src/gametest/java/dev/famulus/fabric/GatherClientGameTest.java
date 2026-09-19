@@ -157,6 +157,22 @@ public final class GatherClientGameTest implements FabricClientGameTest {
                     + "box, went from " + logsBefore + " to " + logsAfter);
             require(shulkersAfter == 1, "The shulker box must be picked back up, found " + shulkersAfter);
 
+            world.getServer().runCommand("item replace entity @a hotbar.2 with minecraft:oak_log 8");
+            context.waitTick();
+            world.getConnection().waitForClientboundPackets();
+            context.waitFor(client -> oakCount(client) >= 8, 400);
+            int planksBefore = context.computeOnClient(GatherClientGameTest::plankCount);
+
+            command(context, "/famulus craft minecraft:oak_planks 16");
+            context.waitFor(client -> FamulusClient.agent() != null
+                    && !FamulusClient.agent().isRunning(), 1200);
+            int planksAfter = context.computeOnClient(GatherClientGameTest::plankCount);
+            System.out.println("[FamulusCraft] planks " + planksBefore + " -> " + planksAfter);
+            context.takeScreenshot("famulus-craft-done");
+            require(planksAfter >= planksBefore + 16,
+                    "Crafting 16 planks should have produced at least 16, went from "
+                    + planksBefore + " to " + planksAfter);
+
             context.setScreen(FamulusClient::createScreen);
             context.waitTick();
             context.takeScreenshot("famulus-screen-agent");
@@ -183,6 +199,10 @@ public final class GatherClientGameTest implements FabricClientGameTest {
 
     private static int oakCount(Minecraft client) {
         return client.player.getInventory().countItem(Items.OAK_LOG);
+    }
+
+    private static int plankCount(Minecraft client) {
+        return client.player.getInventory().countItem(Items.OAK_PLANKS);
     }
 
     private static int shulkerCount(Minecraft client) {

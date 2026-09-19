@@ -100,7 +100,7 @@ class PlanParserTest {
     @Test
     void refusesActionsThatHaveNoExecutorYet() {
         assertTrue(refuse("""
-                {"goal":"make","tasks":[{"type":"craft","item":"minecraft:chest","count":1}]}
+                {"goal":"talk","tasks":[{"type":"interact","target":"minecraft:villager"}]}
                 """).getMessage().contains("not implemented"));
     }
 

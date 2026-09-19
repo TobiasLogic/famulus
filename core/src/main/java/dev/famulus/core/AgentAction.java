@@ -3,7 +3,7 @@ package dev.famulus.core;
 public enum AgentAction {
     GATHER(true),
     MINE(false),
-    CRAFT(false),
+    CRAFT(true),
     TRAVEL(true),
 
     EXPLORE(true),

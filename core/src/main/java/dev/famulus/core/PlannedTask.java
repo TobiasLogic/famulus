@@ -123,6 +123,23 @@ public sealed interface PlannedTask {
         }
     }
 
+    record Interact(String id, String target) implements PlannedTask {
+        public Interact {
+            requireId(id);
+            requireItem(target);
+        }
+
+        @Override
+        public AgentAction action() {
+            return AgentAction.INTERACT;
+        }
+
+        @Override
+        public String describe() {
+            return "interact with " + target;
+        }
+    }
+
     private static void requireId(String id) {
         Objects.requireNonNull(id, "id");
         if (id.isBlank()) {

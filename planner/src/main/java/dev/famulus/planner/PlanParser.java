@@ -96,6 +96,14 @@ public final class PlanParser {
                     new PlannedTask.Withdraw(id, requireItem(task, index), requireCount(task, index));
             case "craft" ->
                     new PlannedTask.Craft(id, requireItem(task, index), requireCount(task, index));
+            case "interact" -> {
+                String target = string(task, "target");
+                if (target == null || target.isBlank()) {
+                    throw new PlannerException("Task " + (index + 1) + " is an interact with no target.");
+                }
+                yield new PlannedTask.Interact(id,
+                        target.contains(":") ? target : "minecraft:" + target);
+            }
             case "travel", "goto", "move" -> new PlannedTask.Travel(id,
                     integer(task, "x", 0), integer(task, "y", 64), integer(task, "z", 0));
             case "build" -> {

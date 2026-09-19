@@ -106,6 +106,13 @@ public final class FamulusClient implements ClientModInitializer {
                                                         new PlannedTask.Withdraw("w1",
                                                                 context.getArgument("item", Identifier.class).toString(),
                                                                 IntegerArgumentType.getInteger(context, "count")))))))
+                        .then(literal("craft")
+                                .then(argument("item", IdentifierArgument.id())
+                                        .then(argument("count", IntegerArgumentType.integer(1, 2304))
+                                                .executes(context -> single(context.getSource(),
+                                                        new PlannedTask.Craft("c1",
+                                                                context.getArgument("item", Identifier.class).toString(),
+                                                                IntegerArgumentType.getInteger(context, "count")))))))
                         .then(literal("build")
                                 .then(argument("schematic", StringArgumentType.string())
                                         .suggests(FamulusClient::suggestSchematics)

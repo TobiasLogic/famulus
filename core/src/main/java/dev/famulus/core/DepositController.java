@@ -43,8 +43,11 @@ public final class DepositController {
         } else if (nextTask instanceof PlannedTask.Withdraw withdraw) {
             withdrawing = true;
             amount = withdraw.count();
+        } else if (nextTask instanceof PlannedTask.Craft craft) {
+            withdrawing = true;
+            amount = craft.count();
         } else {
-            throw new IllegalArgumentException("Not a transfer task: " + nextTask.describe());
+            throw new IllegalArgumentException("Not a transfer or craft task: " + nextTask.describe());
         }
         task = nextTask;
         initialWorldKey = snapshot.worldKey();
@@ -66,7 +69,7 @@ public final class DepositController {
             finish(TaskStatus.RESOURCE_MISSING, "Holding " + held + ", asked to store " + amount);
         } else if (!snapshot.storageAvailable()) {
             finish(TaskStatus.RESOURCE_MISSING, withdrawing
-                    ? "No container in reach to take from"
+                    ? "Nothing in reach to take from or craft with"
                     : "No container or shulker box available to store into");
         } else {
             beginAttempt(nowMillis);
