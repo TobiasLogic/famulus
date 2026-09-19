@@ -1,0 +1,10 @@
+plugins {
+    id 'base'
+}
+allprojects {
+    group = rootProject.property('group')
+    version = rootProject.property('version')
+    repositories { mavenCentral() }
+}
+tasks.named('build') { dependsOn ':core:build', ':jev:build', ':planner:build', ':fabric:build' }
+tasks.named('check') { dependsOn ':core:check', ':jev:check', ':planner:check', ':fabric:check' }
